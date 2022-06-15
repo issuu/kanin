@@ -1,0 +1,2 @@
+[workspace]
+members = ["kanin", "kanin_derive", "minimal_example"]

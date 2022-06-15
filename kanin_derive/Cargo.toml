@@ -1,0 +1,24 @@
+[package]
+name = "kanin_derive"
+version = "0.4.0"
+edition = "2021"
+authors = ["Victor Nordam Suadicani <v.n.suadicani@gmail.com>"]
+description = "Derive macros for kanin"
+rust-version = "1.60"
+repository = "https://github.com/issuu/kanin"
+license = "MIT OR Apache-2.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+proc-macro = true
+
+[dependencies]
+# Rust code parser.
+syn = { version = "1.0.91", features = ["full", "extra-traits"] }
+
+# Rust code generation.
+quote = "1.0.17"
+
+# Allows using proc macro types in more contexts than just proc macro crates.
+proc-macro2 = "1.0.37"
