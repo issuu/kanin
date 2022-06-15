@@ -5,14 +5,15 @@ mod task;
 use std::{any::Any, fmt, sync::Arc};
 
 use anymap::Map;
-use futures::future::select_all;
+use futures::future::{select_all, SelectAll};
 use lapin::{self, Connection, ConnectionProperties};
 use log::{debug, info, trace};
+use tokio::task::JoinHandle;
 
 use self::task::TaskFactory;
 use crate::{extract::State, Error, Handler, QueueConfig, Respond, Result};
 
-/// Apps can hold state that can be extracted in handlers. This state is stored in a type-map.
+/// Apps can hold any type as state. These types can then be extracted in handlers. This state is stored in a type-map.
 pub(crate) type StateMap = Map<dyn Any + Send + Sync>;
 
 /// The central struct of your application.
@@ -111,54 +112,8 @@ impl App {
     /// # Panics
     /// On connection errors after the initial connection is established, the app will simply panic.
     pub async fn run(self, amqp_addr: &str) -> Result<()> {
-        // Ensure some handlers were actually registered.
-        if self.handlers.is_empty() {
-            return Err(Error::NoHandlers);
-        }
-
-        debug!("Connecting to AMQP on address: {amqp_addr:?} ...");
-        let conn = Connection::connect(amqp_addr, ConnectionProperties::default()).await?;
-        trace!("Connected to AMQP on address: {amqp_addr:?}");
-
-        // If we get an error from RabbitMQ, we simply panic. We leave it as an exercise to the reader to restart.
-        // Could perhaps allow to customize this with a saved closure on the app struct.
-        conn.on_error(|e| {
-            panic!("Connection returned error: {e:#}");
-        });
-
-        let mut join_handles = Vec::new();
-
-        let state = Arc::new(self.state);
-
-        for task_factory in self.handlers.into_iter() {
-            debug!(
-                "Spawning handler task for routing key: {:?} ...",
-                task_factory.routing_key()
-            );
-
-            // Construct the task from the factory. This produces a pinned future which we can then spawn.
-            let task = task_factory.build(&conn, state.clone()).await?;
-
-            // Spawn the task and save the join handle.
-            join_handles.push(tokio::spawn(task));
-        }
-
-        info!(
-            "Connected to AMQP broker. Listening on {} handler{}.",
-            join_handles.len(),
-            if join_handles.len() == 1 { "" } else { "s" }
-        );
-
-        // Await all the handlers tasks. Handlers receive messages in a loop so under normal conditions, this should never return.
-        //
-        // However, it can return in rare cases:
-        // 1. A handler panicked.
-        // 2. The AMQP broker cancelled a handler's consumer for some reason (maybe the AMQP broker itself crashed?).
-        // 3. The AMQP connection somehow got an error (could be as innocent as a lost internet connection).
-        //
-        // In any case, the solution is the same. We simply shut down. We leave it to the user to restart.
-        let (returning_handler, _remaining_handlers_count, _leftover_handlers) =
-            select_all(join_handles).await;
+        let handles = self.setup_handlers(amqp_addr).await?;
+        let (returning_handler, _remaining_handlers_count, _leftover_handlers) = handles.await;
 
         match returning_handler {
             Ok(routing_key) => {
@@ -172,5 +127,42 @@ impl App {
                 panic!("A handler panicked: {:#}", e);
             }
         }
+    }
+
+    /// Set up all the handlers, returning a [`SelectAll`] future that collects all the join handles.
+    pub(crate) async fn setup_handlers(
+        self,
+        amqp_addr: &str,
+    ) -> Result<SelectAll<JoinHandle<String>>> {
+        if self.handlers.is_empty() {
+            return Err(Error::NoHandlers);
+        }
+        debug!("Connecting to AMQP on address: {amqp_addr:?} ...");
+        let conn = Connection::connect(amqp_addr, ConnectionProperties::default()).await?;
+        trace!("Connected to AMQP on address: {amqp_addr:?}");
+        conn.on_error(|e| {
+            panic!("Connection returned error: {e:#}");
+        });
+        let mut join_handles = Vec::new();
+        let state = Arc::new(self.state);
+        for task_factory in self.handlers.into_iter() {
+            debug!(
+                "Spawning handler task for routing key: {:?} ...",
+                task_factory.routing_key()
+            );
+
+            // Construct the task from the factory. This produces a pinned future which we can then spawn.
+            let task = task_factory.build(&conn, state.clone()).await?;
+
+            // Spawn the task and save the join handle.
+            join_handles.push(tokio::spawn(task));
+        }
+        info!(
+            "Connected to AMQP broker. Listening on {} handler{}.",
+            join_handles.len(),
+            if join_handles.len() == 1 { "" } else { "s" }
+        );
+
+        Ok(select_all(join_handles))
     }
 }

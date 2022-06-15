@@ -54,7 +54,42 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[cfg(test)]
 mod tests {
-    pub use super::*;
+    mod send_recv;
 
-    mod basic;
+    use std::time::Duration;
+
+    use lapin::{Connection, ConnectionProperties};
+    use log::warn;
+
+    const TEST_AMQP_ADDR: &str = "amqp://localhost";
+
+    /// Initializes test logging.
+    fn init_logging() {
+        std::env::set_var("RUST_LOG", "debug");
+        let _ = env_logger::builder().is_test(true).try_init();
+    }
+
+    /// Returns a connection to AMQP. This will retry until a succesful connection is established.
+    async fn amqp_connect() -> Connection {
+        let mut attempts = 0;
+        let conn = loop {
+            match Connection::connect(TEST_AMQP_ADDR, ConnectionProperties::default()).await {
+                Ok(conn) => break conn,
+                Err(e) => {
+                    warn!("Retrying connection");
+                    attempts += 1;
+                    if attempts > 8 {
+                        panic!("Failed to establish a connection to AMQP. Ensure that a RabbitMQ instance is running on the 5672 port on localhost. Error: {e}")
+                    }
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                }
+            }
+        };
+
+        conn.on_error(|e| {
+            panic!("Connection returned error: {e:#}");
+        });
+
+        conn
+    }
 }

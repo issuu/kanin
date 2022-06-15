@@ -12,6 +12,6 @@ fn main() {
             "EchoResponse",
             "EchoResponse.response",
         ])
-        .compile_protos(&["src/protobuf/echo.proto"], &["src/"])
+        .compile_protos(&["src/protobuf/echo.proto"], &["src"])
         .expect("Failed to compile .proto files")
 }
