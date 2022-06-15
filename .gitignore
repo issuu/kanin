@@ -5,4 +5,4 @@
 Cargo.lock
 
 # Ignore generated files
-minimal_example/src/protobuf/generated
+minimal_example/src/protobuf/generated/echo.rs
