@@ -1,4 +1,4 @@
-# kanin
+# 🐰 kanin
 A framework for AMQP built on top of [lapin](https://github.com/amqp-rs/lapin) that makes it easy to create RPC microservices in Rust 🦀, using Protobuf.
 
 # Usage
