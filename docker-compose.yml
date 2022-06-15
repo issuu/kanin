@@ -1,0 +1,9 @@
+version: '3.9'
+
+services:
+  amqp:
+    image: rabbitmq:latest
+    container_name: kanin_amqp
+    hostname: kanin_amqp
+    ports:
+      - 5672:5672

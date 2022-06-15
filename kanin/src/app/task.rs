@@ -182,7 +182,7 @@ pub(super) struct TaskFactory {
     /// Queue configuration for the handler task produced by this task factory.
     queue_config: QueueConfig,
     /// The factory function that constructs the handler task from the given channel, consumer and state map.
-    factory: Box<dyn FnOnce(Channel, Consumer, Arc<StateMap>) -> HandlerTask>,
+    factory: Box<dyn FnOnce(Channel, Consumer, Arc<StateMap>) -> HandlerTask + Send>,
 }
 
 impl TaskFactory {

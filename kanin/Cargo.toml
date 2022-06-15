@@ -45,3 +45,20 @@ thiserror = "1.0.30"
 
 # Provides a map from types to a single value of that type.
 anymap = "1.0.0-beta.1"
+
+[dev-dependencies]
+# Concrete logging implementation.
+env_logger = "0.9.0"
+
+# Asynchronous runtime.
+tokio = { version = "1.18.0", features = [
+	"rt",
+	"rt-multi-thread",
+	"macros",
+	# Needed for sleeping on tasks.
+	"time",
+	# Needed for OnceCell.
+	"sync",
+	# Needed for const_new on OnceCell.
+	"parking_lot",
+] }
