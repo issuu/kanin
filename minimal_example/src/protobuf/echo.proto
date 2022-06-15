@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package echo;
+
+message InvalidRequest {
+  string error = 1;
+}
+
+message InternalError {
+  string source = 1;
+  string error = 2;
+}
+
+message EchoRequest {
+  string value = 1;
+}
+
+message EchoResponse {
+  message Success {
+    string value = 1;
+  }
+
+  oneof response {
+    Success success = 1;
+    InternalError internal_error = 2;
+    InvalidRequest invalid_request = 3;
+  }
+}
+
+service EchoService {
+  rpc Echo(EchoRequest) returns (EchoResponse);
+  rpc Yell(EchoRequest) returns (EchoResponse);
+}

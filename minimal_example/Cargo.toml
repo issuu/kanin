@@ -1,0 +1,16 @@
+[package]
+name = "minimal_example"
+description = "Just a small example of how to use kanin"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+kanin = { path = "../kanin" }
+tokio = "1.18.0"
+prost = "0.10.0"
+
+[build-dependencies]
+kanin = { path = "../kanin" }
+prost-build = "0.10.0"
