@@ -43,6 +43,14 @@ impl App {
         Self::default()
     }
 
+    /// Creates a connection with default properties. This is meant to be used in conjunction with [App::run_with_connection].
+    ///
+    /// # Errors
+    /// If a connection to the AMQP broker could not be established.
+    pub async fn create_connection(amqp_addr: &str) -> Result<Connection> {
+        Ok(Connection::connect(amqp_addr, ConnectionProperties::default()).await?)
+    }
+
     /// Registers a new handler for the given routing key with the default prefetch count.
     ///
     /// The handler will respond to any messages with `reply_to` and `correlation_id` properties.
@@ -112,7 +120,28 @@ impl App {
     /// # Panics
     /// On connection errors after the initial connection is established, the app will simply panic.
     pub async fn run(self, amqp_addr: &str) -> Result<()> {
-        let handles = self.setup_handlers(amqp_addr).await?;
+        debug!("Connecting to AMQP on address: {amqp_addr:?} ...");
+        let conn = Connection::connect(amqp_addr, ConnectionProperties::default()).await?;
+        trace!("Connected to AMQP on address: {amqp_addr:?}");
+        self.run_with_connection(&conn).await
+    }
+
+    /// Runs the app with all the handlers that have been registered.
+    ///
+    /// Each handler is given its own dedicated channel associated with the single connection created from the provided connection.
+    /// The handlers then run in their own spawned tokio tasks.
+    /// Handlers handle requests concurrently by spawning new tokio tasks for each incoming request.
+    ///
+    /// # Errors
+    /// Returns an `Err` on any of the below conditions:
+    /// * No handlers were registered.
+    /// * A connection to the AMQP broker could not be established.
+    /// * Queue/consumer declaration or binding failed while setting up a handler.
+    ///
+    /// # Panics
+    /// On connection errors after the initial connection is established, the app will simply panic.
+    pub async fn run_with_connection(self, conn: &Connection) -> Result<()> {
+        let handles = self.setup_handlers(conn).await?;
         let (returning_handler, _remaining_handlers_count, _leftover_handlers) = handles.await;
 
         match returning_handler {
@@ -132,14 +161,11 @@ impl App {
     /// Set up all the handlers, returning a [`SelectAll`] future that collects all the join handles.
     pub(crate) async fn setup_handlers(
         self,
-        amqp_addr: &str,
+        conn: &Connection,
     ) -> Result<SelectAll<JoinHandle<String>>> {
         if self.handlers.is_empty() {
             return Err(Error::NoHandlers);
         }
-        debug!("Connecting to AMQP on address: {amqp_addr:?} ...");
-        let conn = Connection::connect(amqp_addr, ConnectionProperties::default()).await?;
-        trace!("Connected to AMQP on address: {amqp_addr:?}");
         conn.on_error(|e| {
             panic!("Connection returned error: {e:#}");
         });
@@ -152,7 +178,7 @@ impl App {
             );
 
             // Construct the task from the factory. This produces a pinned future which we can then spawn.
-            let task = task_factory.build(&conn, state.clone()).await?;
+            let task = task_factory.build(conn, state.clone()).await?;
 
             // Spawn the task and save the join handle.
             join_handles.push(tokio::spawn(task));
