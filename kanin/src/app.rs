@@ -128,7 +128,7 @@ impl App {
 
     /// Runs the app with all the handlers that have been registered.
     ///
-    /// Each handler is given its own dedicated channel associated with the single connection created from the provided connection.
+    /// Each handler is given its own dedicated channel associated with the given connection.
     /// The handlers then run in their own spawned tokio tasks.
     /// Handlers handle requests concurrently by spawning new tokio tasks for each incoming request.
     ///
