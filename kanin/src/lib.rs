@@ -30,7 +30,6 @@
 pub use lapin;
 
 pub mod app;
-pub mod derive;
 pub mod error;
 pub mod extract;
 pub mod handler;
@@ -45,6 +44,7 @@ pub use error::Error;
 pub use error::HandlerError;
 pub use extract::Extract;
 pub use handler::Handler;
+pub use kanin_derive::FromError;
 pub use queue_config::QueueConfig;
 pub use request::Request;
 pub use response::Respond;

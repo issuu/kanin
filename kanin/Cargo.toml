@@ -1,6 +1,6 @@
 [package]
 name = "kanin"
-version = "0.13.1"
+version = "0.14.0"
 edition = "2021"
 authors = ["Victor Nordam Suadicani <v.n.suadicani@gmail.com>"]
 description = "An RPC microservice framework for AMQP, protobuf and Rust built on lapin (https://github.com/amqp-rs/lapin)."
@@ -32,9 +32,6 @@ async-trait = "0.1.53"
 
 # Protobuf implementation.
 prost = "0.10.0"
-
-# Protobuf compilation. Only used to extend prost_build::Config with a helper method.
-prost-build = "0.10.0"
 
 # Useful extra derive macros.
 derive_more = "0.99.17"
