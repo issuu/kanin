@@ -61,7 +61,7 @@ pub enum ServerError {
 /// You must implement `FromError<kanin::HandlerError> for T` for any return type `T` of your handlers.
 /// This is so that kanin knows how to construct an instance of your response from its internal errors.
 ///
-/// If you want to implement this on a protobuf message, you can derive it easily using [`kanin::derive::ProstDeriveExt`].
+/// If you want to implement this on a protobuf message, you can derive it easily using the [`kanin::FromError`] derive macro.
 pub trait FromError<Err> {
     /// Converts the error into a response.
     fn from_error(error: Err) -> Self;
