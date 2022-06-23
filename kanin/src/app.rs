@@ -43,14 +43,6 @@ impl App {
         Self::default()
     }
 
-    /// Creates a connection with default properties. This is meant to be used in conjunction with [App::run_with_connection].
-    ///
-    /// # Errors
-    /// If a connection to the AMQP broker could not be established.
-    pub async fn create_connection(amqp_addr: &str) -> Result<Connection> {
-        Ok(Connection::connect(amqp_addr, ConnectionProperties::default()).await?)
-    }
-
     /// Registers a new handler for the given routing key with the default prefetch count.
     ///
     /// The handler will respond to any messages with `reply_to` and `correlation_id` properties.
@@ -105,20 +97,9 @@ impl App {
         self
     }
 
-    /// Runs the app with all the handlers that have been registered.
-    ///
-    /// The app uses a single AMQP connection. Each handler is given its own dedicated channel associated with the single connection.
-    /// The handlers then run in their own spawned tokio tasks.
-    /// Handlers handle requests concurrently by spawning new tokio tasks for each incoming request.
-    ///
-    /// # Errors
-    /// Returns an `Err` on any of the below conditions:
-    /// * No handlers were registered.
-    /// * A connection to the AMQP broker could not be established.
-    /// * Queue/consumer declaration or binding failed while setting up a handler.
-    ///
-    /// # Panics
-    /// On connection errors after the initial connection is established, the app will simply panic.
+    /// Connects to AMQP with the given address and calls [`run_with_connection`] with the resulting connection.
+    /// See [`run_with_connection`] for more details.
+    #[allow(clippy::missing_errors_doc)]
     pub async fn run(self, amqp_addr: &str) -> Result<()> {
         debug!("Connecting to AMQP on address: {amqp_addr:?} ...");
         let conn = Connection::connect(amqp_addr, ConnectionProperties::default()).await?;
@@ -139,7 +120,7 @@ impl App {
     /// * Queue/consumer declaration or binding failed while setting up a handler.
     ///
     /// # Panics
-    /// On connection errors after the initial connection is established, the app will simply panic.
+    /// On connection errors, the app will simply panic.
     pub async fn run_with_connection(self, conn: &Connection) -> Result<()> {
         let handles = self.setup_handlers(conn).await?;
         let (returning_handler, _remaining_handlers_count, _leftover_handlers) = handles.await;
