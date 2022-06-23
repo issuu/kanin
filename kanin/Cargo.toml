@@ -33,9 +33,6 @@ async-trait = "0.1.53"
 # Protobuf implementation.
 prost = "0.10.0"
 
-# Protobuf compilation. Only used to extend prost_build::Config with a helper method.
-prost-build = "0.10.0"
-
 # Useful extra derive macros.
 derive_more = "0.99.17"
 

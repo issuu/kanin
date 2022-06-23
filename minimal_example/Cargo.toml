@@ -12,5 +12,4 @@ tokio = "1.18.0"
 prost = "0.10.0"
 
 [build-dependencies]
-kanin = { path = "../kanin" }
 prost-build = "0.10.0"
