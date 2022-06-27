@@ -152,8 +152,14 @@ fn derive_enum(name: Ident, variants: Punctuated<Variant, Comma>) -> TokenStream
         impl ::kanin::error::FromError<::kanin::HandlerError> for #name {
             fn from_error(error: ::kanin::HandlerError) -> Self {
                 match error {
-                    ::kanin::HandlerError::InvalidRequest(e) => Self::#invalid_request_name(::kanin::error::FromError::from_error(e)),
-                    ::kanin::HandlerError::Internal(e) => Self::#internal_error_name(::kanin::error::FromError::from_error(e)),
+                    ::kanin::HandlerError::InvalidRequest(e) => {
+                        ::log::warn!("{e}");
+                        Self::#invalid_request_name(::kanin::error::FromError::from_error(e))
+                    },
+                    ::kanin::HandlerError::Internal(e) => {
+                        ::log::error!("{e}");
+                        Self::#internal_error_name(::kanin::error::FromError::from_error(e))
+                    },
                 }
             }
         }
