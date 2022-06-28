@@ -97,9 +97,19 @@ impl App {
         self
     }
 
+    /// Connects to AMQP with the given address and calls [`run_with_connection`] with the resulting connection.
+    /// See [`run_with_connection`] for more details.
+    #[allow(clippy::missing_errors_doc)]
+    pub async fn run(self, amqp_addr: &str) -> Result<()> {
+        debug!("Connecting to AMQP on address: {amqp_addr:?} ...");
+        let conn = Connection::connect(amqp_addr, ConnectionProperties::default()).await?;
+        trace!("Connected to AMQP on address: {amqp_addr:?}");
+        self.run_with_connection(&conn).await
+    }
+
     /// Runs the app with all the handlers that have been registered.
     ///
-    /// The app uses a single AMQP connection. Each handler is given its own dedicated channel associated with the single connection.
+    /// Each handler is given its own dedicated channel associated with the given connection.
     /// The handlers then run in their own spawned tokio tasks.
     /// Handlers handle requests concurrently by spawning new tokio tasks for each incoming request.
     ///
@@ -110,9 +120,9 @@ impl App {
     /// * Queue/consumer declaration or binding failed while setting up a handler.
     ///
     /// # Panics
-    /// On connection errors after the initial connection is established, the app will simply panic.
-    pub async fn run(self, amqp_addr: &str) -> Result<()> {
-        let handles = self.setup_handlers(amqp_addr).await?;
+    /// On connection errors, the app will simply panic.
+    pub async fn run_with_connection(self, conn: &Connection) -> Result<()> {
+        let handles = self.setup_handlers(conn).await?;
         let (returning_handler, _remaining_handlers_count, _leftover_handlers) = handles.await;
 
         match returning_handler {
@@ -132,14 +142,11 @@ impl App {
     /// Set up all the handlers, returning a [`SelectAll`] future that collects all the join handles.
     pub(crate) async fn setup_handlers(
         self,
-        amqp_addr: &str,
+        conn: &Connection,
     ) -> Result<SelectAll<JoinHandle<String>>> {
         if self.handlers.is_empty() {
             return Err(Error::NoHandlers);
         }
-        debug!("Connecting to AMQP on address: {amqp_addr:?} ...");
-        let conn = Connection::connect(amqp_addr, ConnectionProperties::default()).await?;
-        trace!("Connected to AMQP on address: {amqp_addr:?}");
         conn.on_error(|e| {
             panic!("Connection returned error: {e:#}");
         });
@@ -152,7 +159,7 @@ impl App {
             );
 
             // Construct the task from the factory. This produces a pinned future which we can then spawn.
-            let task = task_factory.build(&conn, state.clone()).await?;
+            let task = task_factory.build(conn, state.clone()).await?;
 
             // Spawn the task and save the join handle.
             join_handles.push(tokio::spawn(task));

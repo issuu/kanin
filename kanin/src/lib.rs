@@ -28,6 +28,8 @@
 
 // Re-exporting underlying lapin version so you don't have to add the same version as a dependency.
 pub use lapin;
+// Also re-exporting connection for easy access.
+pub use lapin::Connection;
 
 pub mod app;
 pub mod error;

@@ -11,7 +11,7 @@ use crate::{
     Respond,
 };
 
-use super::{amqp_connect, TEST_AMQP_ADDR};
+use super::amqp_connect;
 
 #[derive(Debug)]
 struct MyResponse(String);
@@ -112,7 +112,7 @@ async fn it_receives_various_messages_and_works_as_expected() {
         .handler("handler_state_extractor", handler_state_extractor)
         .handler("listener", listener)
         .handler("shutdown", shutdown)
-        .setup_handlers(TEST_AMQP_ADDR)
+        .setup_handlers(&amqp_connect().await)
         .await
         .unwrap();
 
@@ -121,7 +121,7 @@ async fn it_receives_various_messages_and_works_as_expected() {
         .handler("handler_reply_to", handler)
         .handler("handler_message_reply_to", handler_message)
         .handler("recv_shutdown", shutdown)
-        .setup_handlers(TEST_AMQP_ADDR)
+        .setup_handlers(&amqp_connect().await)
         .await
         .unwrap();
 
