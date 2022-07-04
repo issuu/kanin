@@ -166,16 +166,18 @@ where
 
 /// Task factories take a channel, consumer and the app state and produces a task for running in tokio.
 ///
-/// This type is saved by [`App`] during calls to [`App::handler`].
+/// This type is saved by [`App`] during calls to [`App::handler`][crate::App::handler].
 /// It is how the [`App`] keeps the handlers saved before running.
 ///
-/// Upon calling [`App::run`], channels and consumers are created for each task factory,
+/// Upon calling [`App::run`][crate::App::run], channels and consumers are created for each task factory,
 /// creating a [`HandlerTask`] which can then be run in tokio.
 ///
 /// In a nutshell:
 /// 1. User creates handler function.
-/// 2. User calls [`App::handler`], saving the handler as a `TaskFactory`.
-/// 3. User calls [`App::run`], creating tasks from all the task factories that are then run in tokio.
+/// 2. User calls [`App::handler`][crate::App::handler], saving the handler as a `TaskFactory`.
+/// 3. User calls [`App::run`][crate::App::run], creating tasks from all the task factories that are then run in tokio.
+///
+/// [`App`]: crate::App
 pub(super) struct TaskFactory {
     /// The routing key of the handler task produced by this task factory.
     routing_key: String,

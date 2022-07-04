@@ -34,7 +34,7 @@ macro_rules! impl_handler {
     ( $($ty:ident),* $(,)? ) => {
         #[allow(non_snake_case)]
         #[async_trait]
-        impl<'r, Func, Fut, Res, $($ty,)*> Handler<($($ty,)*), Res> for Func
+        impl<Func, Fut, Res, $($ty,)*> Handler<($($ty,)*), Res> for Func
         where
             Func: FnOnce($($ty,)*) -> Fut + Send + 'static + Clone,
             Fut: Future<Output = Res> + Send,
