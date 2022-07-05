@@ -97,8 +97,8 @@ impl App {
         self
     }
 
-    /// Connects to AMQP with the given address and calls [`run_with_connection`] with the resulting connection.
-    /// See [`run_with_connection`] for more details.
+    /// Connects to AMQP with the given address and calls [`run_with_connection`][App::run_with_connection] with the resulting connection.
+    /// See [`run_with_connection`][App::run_with_connection] for more details.
     #[allow(clippy::missing_errors_doc)]
     pub async fn run(self, amqp_addr: &str) -> Result<()> {
         debug!("Connecting to AMQP on address: {amqp_addr:?} ...");

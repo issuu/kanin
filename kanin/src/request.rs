@@ -65,7 +65,7 @@ impl Request {
     /// Returns the request's correlation ID.
     ///
     /// The correlation ID is put on the header of the response.
-    /// The caller can then inspect the [`reply_to`] queue for a response
+    /// The caller can then inspect the [`Request::reply_to`] queue for a response
     /// with a correlation ID that matches the request, thus *correlating*
     /// requests and responses.
     pub fn correlation_id(&self) -> Option<&ShortString> {
