@@ -1,4 +1,11 @@
 # 🐰 kanin
+<a href="https://crates.io/crates/kanin">
+    <img src="https://img.shields.io/crates/v/kanin.svg" alt="Crates.io version" />
+</a>
+<a href="https://docs.rs/kanin">
+    <img src="https://img.shields.io/docsrs/kanin" alt="Documentation status" />
+</a>
+
 A framework for AMQP built on top of [lapin](https://github.com/amqp-rs/lapin) that makes it easy to create RPC microservices in Rust 🦀, using Protobuf.
 
 # Usage
