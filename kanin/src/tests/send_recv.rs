@@ -36,7 +36,7 @@ impl Extract for MyResponse {
     type Error = HandlerError;
 
     async fn extract(req: &mut Request) -> Result<Self, Self::Error> {
-        match req.delivery() {
+        match &req.delivery {
             None => Err(HandlerError::DELIVERY_ALREADY_EXTRACTED),
             Some(d) => Ok(MyResponse(String::from_utf8_lossy(&d.data).to_string())),
         }

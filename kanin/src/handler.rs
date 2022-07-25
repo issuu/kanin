@@ -13,7 +13,7 @@ use crate::{error::FromError, extract::Extract, request::Request, response::Resp
 #[async_trait]
 pub trait Handler<Args, Res: Respond>: Send + 'static + Clone {
     /// Calls the handler with the given request.
-    async fn call(self, req: Request) -> Res;
+    async fn call(self, req: &mut Request) -> Res;
 }
 
 /// Special-case the 0-args case to avoid unused variable warnings.
@@ -24,7 +24,7 @@ where
     Fut: Future<Output = Res> + Send,
     Res: Respond,
 {
-    async fn call(self, _req: Request) -> Res {
+    async fn call(self, _req: &mut Request) -> Res {
         self().await
     }
 }
@@ -42,9 +42,9 @@ macro_rules! impl_handler {
             $( $ty: Extract + Send,)*
             $( Res: FromError<<$ty as Extract>::Error>,)*
         {
-            async fn call(self, mut req: Request) -> Res {
+            async fn call(self, req: &mut Request) -> Res {
                 $(
-                    let $ty = match $ty::extract(&mut req).await {
+                    let $ty = match $ty::extract(req).await {
                         Ok(value) => value,
                         Err(error) => return Res::from_error(error),
                     };

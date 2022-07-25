@@ -6,14 +6,17 @@ mod state;
 use std::convert::Infallible;
 
 use async_trait::async_trait;
-use lapin::{message::Delivery, Channel};
+use lapin::{acker::Acker, message::Delivery, Channel};
 
 use crate::{error::HandlerError, Request};
 
 pub use message::Msg;
 pub use state::State;
 
-/// A trait for types that can be extracted from requests.
+/// A trait for types that can be extracted from [requests](`Request`).
+///
+/// Note that extractions might mutate the request in certain ways.
+/// Most notably, if extracting the [`Delivery`] or [`Acker`] from a request, it is the responsibility of the handler to acknowledge the message.
 #[async_trait]
 pub trait Extract: Sized {
     /// The error to return in case extraction fails.
@@ -23,13 +26,30 @@ pub trait Extract: Sized {
     async fn extract(req: &mut Request) -> Result<Self, Self::Error>;
 }
 
+/// Note that when you extract the [`Delivery`], the handler itself must acknowledge the request.
+/// Kanin *will not* acknowledge the request for you in this case.
 #[async_trait]
 impl Extract for Delivery {
     type Error = HandlerError;
 
     async fn extract(req: &mut Request) -> Result<Self, Self::Error> {
-        req.take_delivery()
+        req.delivery
+            .take()
             .ok_or(HandlerError::DELIVERY_ALREADY_EXTRACTED)
+    }
+}
+
+/// Note that when you extract the [`Acker`], the handler itself must acknowledge the request.
+/// kanin *will not* acknowledge the request for you in this case.
+#[async_trait]
+impl Extract for Acker {
+    type Error = HandlerError;
+
+    async fn extract(req: &mut Request) -> Result<Self, Self::Error> {
+        req.delivery
+            .as_mut()
+            .ok_or(HandlerError::DELIVERY_ALREADY_EXTRACTED)
+            .map(|d| std::mem::take(&mut d.acker))
     }
 }
 

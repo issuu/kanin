@@ -1,10 +1,10 @@
 [package]
 name = "kanin"
-version = "0.16.1"
+version = "0.17.0"
 edition = "2021"
 authors = ["Victor Nordam Suadicani <v.n.suadicani@gmail.com>"]
 description = "An RPC microservice framework for AMQP, protobuf and Rust built on lapin (https://github.com/amqp-rs/lapin)."
-rust-version = "1.60"
+rust-version = "1.62"
 repository = "https://github.com/issuu/kanin"
 license = "MIT OR Apache-2.0"
 readme = "../README.md"

@@ -16,7 +16,7 @@ pub struct Request {
     /// The channel the message was received on.
     channel: Channel,
     /// The message delivery.
-    delivery: Option<Delivery>,
+    pub(crate) delivery: Option<Delivery>,
 }
 
 impl Request {
@@ -38,18 +38,6 @@ impl Request {
     /// Returns a reference to the [`Channel`] the message was delivered on.
     pub fn channel(&self) -> &Channel {
         &self.channel
-    }
-
-    /// Returns a reference to the [`Delivery`] of the request.
-    ///
-    /// The delivery may be `None` if it was consumed by a request.
-    pub fn delivery(&self) -> Option<&Delivery> {
-        self.delivery.as_ref()
-    }
-
-    /// Takes the request's [`Delivery`] out of the request and leaves the Delivery blank.
-    pub fn take_delivery(&mut self) -> Option<Delivery> {
-        self.delivery.take()
     }
 
     /// Returns the queue that reply messages should be sent to.

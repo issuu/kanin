@@ -66,23 +66,13 @@ where
                 },
             };
 
-            let (req, acker) = match delivery {
+            let req = match delivery {
                 Err(e) => {
                     error!("Error when receiving delivery on routing key \"{routing_key}\": {e:#}");
                     continue;
                 }
                 // Construct the request by bundling the channel and the delivery.
-                Ok(mut delivery) => {
-                    // This is a little dirty... We just take the acker of the delivery.
-                    // It is unclear whether this is okay from an API design standpoint at the time of writing.
-                    // The consequence is that extracting the delivery will not give you a proper acker.
-                    let acker = std::mem::take(&mut delivery.acker);
-                    // Don't worry, this doesn't actually create a new channel, channel is an Arc<Mutex<...>> under the hood.
-                    (
-                        Request::new(channel.clone(), delivery, state.clone()),
-                        acker,
-                    )
-                }
+                Ok(delivery) => Request::new(channel.clone(), delivery, state.clone()),
             };
 
             // Now handle the request.
@@ -91,7 +81,7 @@ where
             // Requests are handled and replied to concurrently.
             // This allows each handler task to process multiple requests at once.
             tasks.push(tokio::spawn(async move {
-                handle_request(req, handler, channel, acker).await;
+                handle_request(req, handler, channel).await;
             }));
         }
     })
@@ -100,7 +90,7 @@ where
 /// Handles the given request with the given handler and channel.
 ///
 /// Acks the request and responds with the given acker as appropriate.
-async fn handle_request<H, Args, Res>(req: Request, handler: H, channel: Channel, acker: Acker)
+async fn handle_request<H, Args, Res>(mut req: Request, handler: H, channel: Channel)
 where
     H: Handler<Args, Res> + Send + 'static,
     Res: Respond + fmt::Debug + Send,
@@ -108,7 +98,7 @@ where
     let reply_to = req.reply_to().cloned();
     let correlation_id = req.correlation_id().cloned();
     // Call the handler with the request.
-    let response = handler.call(req).await;
+    let response = handler.call(&mut req).await;
     debug!(
         "Handler {:?} produced response: {response:?}",
         std::any::type_name::<H>()
@@ -158,9 +148,17 @@ where
         warn!("Received message for handler {:?} but the request did not contain a `reply_to` property, so no reply could be published.", std::any::type_name::<H>());
     };
 
-    match acker.ack(BasicAckOptions::default()).await {
-        Ok(()) => debug!("Successfully acked request."),
-        Err(e) => error!("Failed to ack request: {e:#}"),
+    match req.delivery.map(|d| d.acker) {
+        // Check if it's the default - this signifies that it was already extracted.
+        // In that case, it is the responsibility of the handler to acknowledge, so we won't do it.
+        Some(acker) if acker != Acker::default() => {
+            match acker.ack(BasicAckOptions::default()).await {
+                Ok(()) => debug!("Successfully acked request."),
+                Err(e) => error!("Failed to ack request: {e:#}"),
+            }
+        }
+        // If the delivery or acker was extracted, it is up to the request handler itself to acknowledge the request.
+        _ => (),
     }
 }
 
