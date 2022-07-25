@@ -6,7 +6,7 @@ mod state;
 use std::convert::Infallible;
 
 use async_trait::async_trait;
-use lapin::{message::Delivery, Channel};
+use lapin::{acker::Acker, message::Delivery, Channel};
 
 use crate::{error::HandlerError, Request};
 
@@ -28,8 +28,21 @@ impl Extract for Delivery {
     type Error = HandlerError;
 
     async fn extract(req: &mut Request) -> Result<Self, Self::Error> {
-        req.take_delivery()
+        req.delivery
+            .take()
             .ok_or(HandlerError::DELIVERY_ALREADY_EXTRACTED)
+    }
+}
+
+#[async_trait]
+impl Extract for Acker {
+    type Error = HandlerError;
+
+    async fn extract(req: &mut Request) -> Result<Self, Self::Error> {
+        req.delivery
+            .as_mut()
+            .ok_or(HandlerError::DELIVERY_ALREADY_EXTRACTED)
+            .map(|d| std::mem::take(&mut d.acker))
     }
 }
 
