@@ -13,6 +13,17 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v2
 
+    - name: Install Protobuf (needed by prost)
+      run: |
+        curl -fsSLO https://github.com/protocolbuffers/protobuf/releases/download/v21.5/protoc-21.5-linux-x86_64.zip && \
+          mkdir /tmp/protoc && \
+          unzip protoc-*.zip -d /tmp/protoc && \
+          rm protoc-*.zip && \
+          chmod -R go+rX /tmp/protoc && \
+          mv /tmp/protoc/bin/protoc /usr/local/bin/ && \
+          mv /tmp/protoc/include/* /usr/local/include/ && \
+          rm -r /tmp/protoc
+
     - name: Install just
       uses: actions-rs/cargo@v1
       with:
