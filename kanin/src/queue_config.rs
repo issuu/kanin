@@ -5,9 +5,11 @@ use lapin::types::{AMQPValue, FieldTable};
 
 /// Detailed configuration of queue.
 pub struct QueueConfig {
+    /// The exchange that the queue will be bound to.
+    pub(crate) exchange: Exchange,
     /// Prefetch for queue.
     pub(crate) prefetch: u16,
-    /// Queue declare options
+    /// Queue declare options.
     pub(crate) options: QueueDeclareOptions,
     /// Queue arguments (aka. x-arguments).
     pub(crate) arguments: FieldTable,
@@ -15,11 +17,17 @@ pub struct QueueConfig {
 
 impl QueueConfig {
     /// The default value for the prefetch count.
-    const DEFAULT_PREFETCH: u16 = 64;
+    pub const DEFAULT_PREFETCH: u16 = 64;
 
     /// Creates a new default QueueConfig.
     pub fn new() -> Self {
         Default::default()
+    }
+
+    /// Sets the exchange of the handler.
+    pub fn with_exchange(mut self, exchange: Exchange) -> Self {
+        self.exchange = exchange;
+        self
     }
 
     /// Per consumer prefetch count. See [documentation](https://www.rabbitmq.com/confirms.html#channel-qos-prefetch).
@@ -57,6 +65,7 @@ impl QueueConfig {
 impl Default for QueueConfig {
     fn default() -> Self {
         Self {
+            exchange: Default::default(),
             prefetch: Self::DEFAULT_PREFETCH,
             options: QueueDeclareOptions {
                 auto_delete: true,
@@ -64,5 +73,34 @@ impl Default for QueueConfig {
             },
             arguments: Default::default(),
         }
+    }
+}
+
+/// AMQP exchanges. Currently only the default, direct and topic exchange are supported.
+#[derive(Clone, Copy)]
+pub enum Exchange {
+    /// The default exchange is indicated by the empty string in AMQP.
+    /// Note that the default exchange is actually just a direct exchange with no name.
+    Default,
+    /// The direct exchange. See https://www.rabbitmq.com/tutorials/tutorial-four-python.html for more information.
+    Direct,
+    /// The topic exchange. See https://www.rabbitmq.com/tutorials/tutorial-five-python.html for more information.
+    Topic,
+}
+
+impl Exchange {
+    /// The string representation of the exchange. This is what is sent to RabbitMQ to identify the exchange.
+    pub(crate) fn name(&self) -> &str {
+        match self {
+            Exchange::Default => "",
+            Exchange::Direct => "amq.direct",
+            Exchange::Topic => "amq.topic",
+        }
+    }
+}
+
+impl Default for Exchange {
+    fn default() -> Self {
+        Exchange::Default
     }
 }
