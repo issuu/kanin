@@ -34,7 +34,7 @@ impl QueueConfig {
         Default::default()
     }
 
-    /// Sets the exchange of the handler.
+    /// Sets the exchange of the handler. Defaults to the direct exchange, [`QueueConfig::DIRECT_EXCHANGE`].
     pub fn with_exchange(mut self, exchange: impl Into<String>) -> Self {
         self.exchange = exchange.into();
         self
