@@ -82,7 +82,7 @@ impl QueueConfig {
 impl Default for QueueConfig {
     fn default() -> Self {
         Self {
-            exchange: Self::DEFAULT_EXCHANGE.to_string(),
+            exchange: Self::DIRECT_EXCHANGE.to_string(),
             prefetch: Self::DEFAULT_PREFETCH,
             options: QueueDeclareOptions {
                 auto_delete: true,
