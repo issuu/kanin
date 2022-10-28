@@ -6,7 +6,7 @@ use lapin::types::{AMQPValue, FieldTable};
 /// Detailed configuration of queue.
 pub struct QueueConfig {
     /// The exchange that the queue will be bound to.
-    pub(crate) exchange: Exchange,
+    pub(crate) exchange: String,
     /// Prefetch for queue.
     pub(crate) prefetch: u16,
     /// Queue declare options.
@@ -19,14 +19,24 @@ impl QueueConfig {
     /// The default value for the prefetch count.
     pub const DEFAULT_PREFETCH: u16 = 64;
 
+    /// The default exchange is indicated by the empty string in AMQP.
+    /// Note that the default exchange is actually just a direct exchange with no name.
+    pub const DEFAULT_EXCHANGE: &str = "";
+
+    /// The direct exchange. See https://www.rabbitmq.com/tutorials/tutorial-four-python.html for more information.
+    pub const DIRECT_EXCHANGE: &str = "amq.direct";
+
+    /// The topic exchange. See https://www.rabbitmq.com/tutorials/tutorial-five-python.html for more information.
+    pub const TOPIC_EXCHANGE: &str = "amq.topic";
+
     /// Creates a new default QueueConfig.
     pub fn new() -> Self {
         Default::default()
     }
 
     /// Sets the exchange of the handler.
-    pub fn with_exchange(mut self, exchange: Exchange) -> Self {
-        self.exchange = exchange;
+    pub fn with_exchange(mut self, exchange: impl Into<String>) -> Self {
+        self.exchange = exchange.into();
         self
     }
 
@@ -37,9 +47,16 @@ impl QueueConfig {
     }
 
     /// Overwrite the `auto-delete` property for the queue (defaults to `true`).
-    /// See [documentation](https://www.rabbitmq.com/queues.html#properties)
+    /// See also [documentation](https://www.rabbitmq.com/queues.html#properties).
     pub fn with_auto_delete(mut self, auto_delete: bool) -> Self {
         self.options.auto_delete = auto_delete;
+        self
+    }
+
+    /// Set the `durable` property of the queue (defaults to `false`).
+    /// See also the [documentation](https://www.rabbitmq.com/queues.html#properties).
+    pub fn with_durable(mut self, durable: bool) -> Self {
+        self.options.durable = durable;
         self
     }
 
@@ -65,7 +82,7 @@ impl QueueConfig {
 impl Default for QueueConfig {
     fn default() -> Self {
         Self {
-            exchange: Default::default(),
+            exchange: Self::DEFAULT_EXCHANGE.to_string(),
             prefetch: Self::DEFAULT_PREFETCH,
             options: QueueDeclareOptions {
                 auto_delete: true,
@@ -73,34 +90,5 @@ impl Default for QueueConfig {
             },
             arguments: Default::default(),
         }
-    }
-}
-
-/// AMQP exchanges. Currently only the default, direct and topic exchange are supported.
-#[derive(Clone, Copy)]
-pub enum Exchange {
-    /// The default exchange is indicated by the empty string in AMQP.
-    /// Note that the default exchange is actually just a direct exchange with no name.
-    Default,
-    /// The direct exchange. See https://www.rabbitmq.com/tutorials/tutorial-four-python.html for more information.
-    Direct,
-    /// The topic exchange. See https://www.rabbitmq.com/tutorials/tutorial-five-python.html for more information.
-    Topic,
-}
-
-impl Exchange {
-    /// The string representation of the exchange. This is what is sent to RabbitMQ to identify the exchange.
-    pub(crate) fn name(&self) -> &str {
-        match self {
-            Exchange::Default => "",
-            Exchange::Direct => "amq.direct",
-            Exchange::Topic => "amq.topic",
-        }
-    }
-}
-
-impl Default for Exchange {
-    fn default() -> Self {
-        Exchange::Default
     }
 }

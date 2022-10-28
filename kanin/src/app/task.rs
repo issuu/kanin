@@ -11,7 +11,7 @@ use lapin::{
 };
 use log::{debug, error, warn};
 
-use crate::{queue_config::Exchange, Handler, QueueConfig, Request, Respond};
+use crate::{Handler, QueueConfig, Request, Respond};
 
 use super::StateMap;
 
@@ -121,7 +121,7 @@ where
 
         let publish = channel
             .basic_publish(
-                Exchange::default().name(),
+                QueueConfig::DEFAULT_EXCHANGE,
                 reply_to.as_str(),
                 BasicPublishOptions::default(),
                 &bytes_response,
@@ -235,7 +235,7 @@ impl TaskFactory {
         channel
             .queue_bind(
                 &self.routing_key,
-                self.queue_config.exchange.name(),
+                &self.queue_config.exchange,
                 &self.routing_key,
                 Default::default(),
                 Default::default(),
