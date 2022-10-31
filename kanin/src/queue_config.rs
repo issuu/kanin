@@ -5,9 +5,11 @@ use lapin::types::{AMQPValue, FieldTable};
 
 /// Detailed configuration of queue.
 pub struct QueueConfig {
+    /// The exchange that the queue will be bound to.
+    pub(crate) exchange: String,
     /// Prefetch for queue.
     pub(crate) prefetch: u16,
-    /// Queue declare options
+    /// Queue declare options.
     pub(crate) options: QueueDeclareOptions,
     /// Queue arguments (aka. x-arguments).
     pub(crate) arguments: FieldTable,
@@ -15,11 +17,27 @@ pub struct QueueConfig {
 
 impl QueueConfig {
     /// The default value for the prefetch count.
-    const DEFAULT_PREFETCH: u16 = 64;
+    pub const DEFAULT_PREFETCH: u16 = 64;
+
+    /// The default exchange is indicated by the empty string in AMQP.
+    /// Note that the default exchange is actually just a direct exchange with no name.
+    pub const DEFAULT_EXCHANGE: &str = "";
+
+    /// The direct exchange. See https://www.rabbitmq.com/tutorials/tutorial-four-python.html for more information.
+    pub const DIRECT_EXCHANGE: &str = "amq.direct";
+
+    /// The topic exchange. See https://www.rabbitmq.com/tutorials/tutorial-five-python.html for more information.
+    pub const TOPIC_EXCHANGE: &str = "amq.topic";
 
     /// Creates a new default QueueConfig.
     pub fn new() -> Self {
         Default::default()
+    }
+
+    /// Sets the exchange of the handler. Defaults to the direct exchange, [`QueueConfig::DIRECT_EXCHANGE`].
+    pub fn with_exchange(mut self, exchange: impl Into<String>) -> Self {
+        self.exchange = exchange.into();
+        self
     }
 
     /// Per consumer prefetch count. See [documentation](https://www.rabbitmq.com/confirms.html#channel-qos-prefetch).
@@ -29,9 +47,16 @@ impl QueueConfig {
     }
 
     /// Overwrite the `auto-delete` property for the queue (defaults to `true`).
-    /// See [documentation](https://www.rabbitmq.com/queues.html#properties)
+    /// See also [documentation](https://www.rabbitmq.com/queues.html#properties).
     pub fn with_auto_delete(mut self, auto_delete: bool) -> Self {
         self.options.auto_delete = auto_delete;
+        self
+    }
+
+    /// Set the `durable` property of the queue (defaults to `false`).
+    /// See also the [documentation](https://www.rabbitmq.com/queues.html#properties).
+    pub fn with_durable(mut self, durable: bool) -> Self {
+        self.options.durable = durable;
         self
     }
 
@@ -57,6 +82,7 @@ impl QueueConfig {
 impl Default for QueueConfig {
     fn default() -> Self {
         Self {
+            exchange: Self::DIRECT_EXCHANGE.to_string(),
             prefetch: Self::DEFAULT_PREFETCH,
             options: QueueDeclareOptions {
                 auto_delete: true,

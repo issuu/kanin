@@ -15,9 +15,6 @@ use crate::{Handler, QueueConfig, Request, Respond};
 
 use super::StateMap;
 
-/// The default exchange is indicated by the empty string in AMQP.
-const DEFAULT_EXCHANGE: &str = "";
-
 /// Handler tasks are the async functions that are run in the tokio tasks to perform handlers.
 ///
 /// They use a given consumer and channel handle in order to receive AMQP deliveries.
@@ -124,7 +121,7 @@ where
 
         let publish = channel
             .basic_publish(
-                DEFAULT_EXCHANGE,
+                QueueConfig::DEFAULT_EXCHANGE,
                 reply_to.as_str(),
                 BasicPublishOptions::default(),
                 &bytes_response,
@@ -186,9 +183,6 @@ pub(super) struct TaskFactory {
 }
 
 impl TaskFactory {
-    /// The in-built direct exchange.
-    const DIRECT_EXCHANGE: &'static str = "amq.direct";
-
     /// Constructs a new task factory from the given routing key and handler.
     pub(super) fn new<H, Args, Res>(
         routing_key: String,
@@ -241,7 +235,7 @@ impl TaskFactory {
         channel
             .queue_bind(
                 &self.routing_key,
-                Self::DIRECT_EXCHANGE,
+                &self.queue_config.exchange,
                 &self.routing_key,
                 Default::default(),
                 Default::default(),
