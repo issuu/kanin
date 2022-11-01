@@ -73,6 +73,21 @@
 //!         .await
 //! }
 //! ```
+//!
+//! # Help, why is my handler rejected by kanin?
+//! There can be several reasons.
+//!
+//! Firstly, ensure that all parameters implement [`Extract`].
+//! Especially for [`Msg`](extract::Msg), ensure the version of the `prost` crate used for the inner type is the same as the prost type used by `kanin`.
+//! You can remove parameters one by one until the function is accepted to find out which parameter is the problem.
+//! You can see if you have multiple `prost` versions by checking your `Cargo.lock` file.
+//!
+//! Secondly, ensure that the response type implements [`Respond`]. Once again, Protobuf messages automatically implement this but your `prost` version must match.
+//!
+//! If you're sure these things are handled, try to replace the body of the handler with `todo!()`.
+//! If this causes the handler to work, then it's likely that the future your async function is creating is not [`Send`].
+//! Your future must be [`Send`]. It is probably not [`Send`] because you're holding on to a type that is not [`Send`] across an await point.
+//! For instance, holding a [`std::sync::MutexGuard`] across an await point will cause your future to not be [`Send`].
 
 // kanin is 100% Safe Rust.
 #![forbid(unsafe_code)]
