@@ -23,10 +23,10 @@ impl QueueConfig {
     /// Note that the default exchange is actually just a direct exchange with no name.
     pub const DEFAULT_EXCHANGE: &str = "";
 
-    /// The direct exchange. See https://www.rabbitmq.com/tutorials/tutorial-four-python.html for more information.
+    /// The direct exchange. See <`https://www.rabbitmq.com/tutorials/tutorial-four-python.html`> for more information.
     pub const DIRECT_EXCHANGE: &str = "amq.direct";
 
-    /// The topic exchange. See https://www.rabbitmq.com/tutorials/tutorial-five-python.html for more information.
+    /// The topic exchange. See <`https://www.rabbitmq.com/tutorials/tutorial-five-python.html`> for more information.
     pub const TOPIC_EXCHANGE: &str = "amq.topic";
 
     /// Creates a new default QueueConfig.
