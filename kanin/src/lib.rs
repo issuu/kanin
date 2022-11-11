@@ -120,7 +120,7 @@ pub mod app;
 pub mod error;
 pub mod extract;
 pub mod handler;
-pub mod queue_config;
+pub mod handler_config;
 pub mod request;
 pub mod response;
 
@@ -131,8 +131,8 @@ pub use error::Error;
 pub use error::HandlerError;
 pub use extract::Extract;
 pub use handler::Handler;
+pub use handler_config::HandlerConfig;
 pub use kanin_derive::FromError;
-pub use queue_config::QueueConfig;
 pub use request::Request;
 pub use response::Respond;
 

@@ -11,7 +11,7 @@ use lapin::{
 };
 use log::{debug, error, warn};
 
-use crate::{Handler, QueueConfig, Request, Respond};
+use crate::{Handler, HandlerConfig, Request, Respond};
 
 use super::StateMap;
 
@@ -121,7 +121,7 @@ where
 
         let publish = channel
             .basic_publish(
-                QueueConfig::DEFAULT_EXCHANGE,
+                HandlerConfig::DEFAULT_EXCHANGE,
                 reply_to.as_str(),
                 BasicPublishOptions::default(),
                 &bytes_response,
@@ -176,19 +176,15 @@ where
 pub(super) struct TaskFactory {
     /// The routing key of the handler task produced by this task factory.
     routing_key: String,
-    /// Queue configuration for the handler task produced by this task factory.
-    queue_config: QueueConfig,
+    /// Configuration for the handler task produced by this task factory.
+    config: HandlerConfig,
     /// The factory function that constructs the handler task from the given channel, consumer and state map.
     factory: Box<dyn FnOnce(Channel, Consumer, Arc<StateMap>) -> HandlerTask + Send>,
 }
 
 impl TaskFactory {
     /// Constructs a new task factory from the given routing key and handler.
-    pub(super) fn new<H, Args, Res>(
-        routing_key: String,
-        handler: H,
-        queue_config: QueueConfig,
-    ) -> Self
+    pub(super) fn new<H, Args, Res>(routing_key: String, handler: H, config: HandlerConfig) -> Self
     where
         H: Handler<Args, Res> + Send + 'static,
         Res: Respond + fmt::Debug + Send,
@@ -196,7 +192,7 @@ impl TaskFactory {
         // A task factory is a closure in a box that produces a handler task.
         Self {
             routing_key: routing_key.clone(),
-            queue_config,
+            config,
             factory: Box::new(
                 move |channel: Channel, consumer: Consumer, state: Arc<StateMap>| {
                     handler_task(routing_key, handler, channel, consumer, state)
@@ -221,21 +217,21 @@ impl TaskFactory {
 
         // Set prefetch according to the desired configuration.
         channel
-            .basic_qos(self.queue_config.prefetch, BasicQosOptions::default())
+            .basic_qos(self.config.prefetch, BasicQosOptions::default())
             .await?;
 
-        // Declare and bind the queue, as specified by AMQP.
+        // If no queue was specified, we just use the routing key.
+        let queue_name = self.config.queue.as_deref().unwrap_or(&self.routing_key);
+
+        // Declare and bind the queue. AMQP states that we must do this before creating the consumer.
         channel
-            .queue_declare(
-                &self.routing_key,
-                self.queue_config.options,
-                self.queue_config.arguments,
-            )
+            .queue_declare(queue_name, self.config.options, self.config.arguments)
             .await?;
+
         channel
             .queue_bind(
-                &self.routing_key,
-                &self.queue_config.exchange,
+                queue_name,
+                &self.config.exchange,
                 &self.routing_key,
                 Default::default(),
                 Default::default(),
@@ -244,7 +240,7 @@ impl TaskFactory {
 
         let consumer = channel
             .basic_consume(
-                &self.routing_key,
+                queue_name,
                 &self.routing_key,
                 BasicConsumeOptions::default(),
                 FieldTable::default(),

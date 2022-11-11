@@ -4,10 +4,12 @@ use lapin::options::QueueDeclareOptions;
 use lapin::types::{AMQPValue, FieldTable};
 
 /// Detailed configuration of queue.
-pub struct QueueConfig {
+pub struct HandlerConfig {
+    /// Queue name to bind to. By default, this will be the same as whatever routing key is used for the handler.
+    pub(crate) queue: Option<String>,
     /// The exchange that the queue will be bound to.
     pub(crate) exchange: String,
-    /// Prefetch for queue.
+    /// Prefetch for the queue.
     pub(crate) prefetch: u16,
     /// Queue declare options.
     pub(crate) options: QueueDeclareOptions,
@@ -15,7 +17,7 @@ pub struct QueueConfig {
     pub(crate) arguments: FieldTable,
 }
 
-impl QueueConfig {
+impl HandlerConfig {
     /// The default value for the prefetch count.
     pub const DEFAULT_PREFETCH: u16 = 64;
 
@@ -32,6 +34,12 @@ impl QueueConfig {
     /// Creates a new default QueueConfig.
     pub fn new() -> Self {
         Default::default()
+    }
+
+    /// Sets the exchange of the handler. Defaults to the direct exchange, [`QueueConfig::DIRECT_EXCHANGE`].
+    pub fn with_queue(mut self, queue: impl Into<String>) -> Self {
+        self.queue = Some(queue.into());
+        self
     }
 
     /// Sets the exchange of the handler. Defaults to the direct exchange, [`QueueConfig::DIRECT_EXCHANGE`].
@@ -79,9 +87,10 @@ impl QueueConfig {
     }
 }
 
-impl Default for QueueConfig {
+impl Default for HandlerConfig {
     fn default() -> Self {
         Self {
+            queue: None,
             exchange: Self::DIRECT_EXCHANGE.to_string(),
             prefetch: Self::DEFAULT_PREFETCH,
             options: QueueDeclareOptions {
