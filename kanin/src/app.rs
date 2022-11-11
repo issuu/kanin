@@ -11,7 +11,7 @@ use log::{debug, info, trace};
 use tokio::task::JoinHandle;
 
 use self::task::TaskFactory;
-use crate::{extract::State, Error, Handler, QueueConfig, Respond, Result};
+use crate::{extract::State, Error, Handler, HandlerConfig, Respond, Result};
 
 /// Apps can hold any type as state. These types can then be extracted in handlers. This state is stored in a type-map.
 pub(crate) type StateMap = Map<dyn Any + Send + Sync>;
@@ -63,7 +63,7 @@ impl App {
         mut self,
         routing_key: impl Into<String>,
         handler: H,
-        queue_config: QueueConfig,
+        config: HandlerConfig,
     ) -> Self
     where
         H: Handler<Args, Res> + Send + 'static,
@@ -71,7 +71,7 @@ impl App {
     {
         // Create and save the task factory - this is a function that creates the async task that will be run in tokio.
         self.handlers
-            .push(TaskFactory::new(routing_key.into(), handler, queue_config));
+            .push(TaskFactory::new(routing_key.into(), handler, config));
 
         self
     }
