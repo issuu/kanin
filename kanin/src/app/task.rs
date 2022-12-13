@@ -142,7 +142,12 @@ where
     } else if !bytes_response.is_empty() {
         // We only warn if the response is not empty.
         // Empty responses may be produced by non-responding handlers, which is fine.
-        warn!("Received message for handler {:?} but the request did not contain a `reply_to` property, so no reply could be published.", std::any::type_name::<H>());
+        let handler = std::any::type_name::<H>();
+        let req_props = match &req.delivery {
+            Some(delivery) => format!("{:?}", delivery.properties),
+            None => "<None>".into(),
+        };
+        warn!("Received message for handler {handler:?} but the request did not contain a `reply_to` property, so no reply could be published (all request properties: {req_props}).");
     };
 
     match req.delivery.map(|d| d.acker) {
