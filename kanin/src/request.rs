@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use lapin::types::ShortString;
+use lapin::protocol::basic::AMQPProperties;
 
 use lapin::{message::Delivery, Channel};
 
@@ -40,25 +40,8 @@ impl Request {
         &self.channel
     }
 
-    /// Returns the queue that reply messages should be sent to.
-    ///
-    /// If `None`, the request cannot be replied to.
-    /// This is sometimes used intentionally, for example when handling events that require no response.
-    pub fn reply_to(&self) -> Option<&ShortString> {
-        self.delivery
-            .as_ref()
-            .and_then(|d| d.properties.reply_to().as_ref())
-    }
-
-    /// Returns the request's correlation ID.
-    ///
-    /// The correlation ID is put on the header of the response.
-    /// The caller can then inspect the [`Request::reply_to`] queue for a response
-    /// with a correlation ID that matches the request, thus *correlating*
-    /// requests and responses.
-    pub fn correlation_id(&self) -> Option<&ShortString> {
-        self.delivery
-            .as_ref()
-            .and_then(|d| d.properties.correlation_id().as_ref())
+    /// Returns the amqp properties if there are any.
+    pub fn properties(&self) -> Option<&AMQPProperties> {
+        self.delivery.as_ref().map(|d| &d.properties)
     }
 }

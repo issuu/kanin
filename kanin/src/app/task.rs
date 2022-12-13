@@ -92,8 +92,9 @@ where
     H: Handler<Args, Res> + Send + 'static,
     Res: Respond + fmt::Debug + Send,
 {
-    let reply_to = req.reply_to().cloned();
-    let correlation_id = req.correlation_id().cloned();
+    let properties = req.properties().cloned();
+    let reply_to = properties.as_ref().and_then(|p| p.reply_to().clone());
+    let correlation_id = properties.as_ref().and_then(|p| p.correlation_id().clone());
     // Call the handler with the request.
     let response = handler.call(&mut req).await;
     debug!(
@@ -143,10 +144,10 @@ where
         // We only warn if the response is not empty.
         // Empty responses may be produced by non-responding handlers, which is fine.
         let handler = std::any::type_name::<H>();
-        let req_props = match &req.delivery {
-            Some(delivery) => format!("{:?}", delivery.properties),
-            None => "<None>".into(),
-        };
+        let req_props = properties
+            .map(|p| format!("{p:?}"))
+            .unwrap_or_else(|| "<None>".into());
+
         warn!("Received message for handler {handler:?} but the request did not contain a `reply_to` property, so no reply could be published (all request properties: {req_props}).");
     };
 
