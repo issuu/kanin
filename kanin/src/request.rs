@@ -40,7 +40,7 @@ impl Request {
         &self.channel
     }
 
-    /// Returns the amqp properties if there are any.
+    /// Returns the AMQP properties of the request, unless the request was already extracted.
     pub fn properties(&self) -> Option<&AMQPProperties> {
         self.delivery.as_ref().map(|d| &d.properties)
     }

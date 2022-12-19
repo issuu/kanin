@@ -1,6 +1,6 @@
 [package]
 name = "kanin"
-version = "0.20.1"
+version = "0.21.0"
 edition = "2021"
 authors = ["Victor Nordam Suadicani <v.n.suadicani@gmail.com>"]
 description = "An RPC microservice framework for AMQP, protobuf and Rust built on lapin (https://github.com/amqp-rs/lapin)."
@@ -45,7 +45,7 @@ anymap = "1.0.0-beta.1"
 
 [dev-dependencies]
 # Concrete logging implementation.
-env_logger = "0.9.0"
+env_logger = "0.10.0"
 
 # Asynchronous runtime.
 tokio = { version = "1.18.0", features = [

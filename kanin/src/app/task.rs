@@ -112,7 +112,11 @@ where
         if let Some(correlation_id) = correlation_id {
             props = props.with_correlation_id(correlation_id);
         } else {
-            warn!("Request for handler {:?} did not contain a `correlation_id` property. A reply will be published, but the receiver may not recognize it as the reply for their request.", std::any::type_name::<H>());
+            let req_props = properties
+                .map(|p| format!("{p:?}"))
+                .unwrap_or_else(|| "<None>".into());
+
+            warn!("Request from handler {:?} did not contain a `correlation_id` property. A reply will be published, but the receiver may not recognize it as the reply for their request. (all properties: {req_props})", std::any::type_name::<H>());
         }
 
         // Warn in case of replying with an empty message, since this is _probably_ wrong or unintended.
@@ -148,7 +152,7 @@ where
             .map(|p| format!("{p:?}"))
             .unwrap_or_else(|| "<None>".into());
 
-        warn!("Received message for handler {handler:?} but the request did not contain a `reply_to` property, so no reply could be published (all request properties: {req_props}).");
+        warn!("Received message from handler {handler:?} but the request did not contain a `reply_to` property, so no reply could be published (all properties: {req_props}).");
     };
 
     match req.delivery.map(|d| d.acker) {
