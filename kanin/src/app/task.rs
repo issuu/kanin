@@ -92,8 +92,9 @@ where
     H: Handler<Args, Res> + Send + 'static,
     Res: Respond + fmt::Debug + Send,
 {
-    let reply_to = req.reply_to().cloned();
-    let correlation_id = req.correlation_id().cloned();
+    let properties = req.properties().cloned();
+    let reply_to = properties.as_ref().and_then(|p| p.reply_to().clone());
+    let correlation_id = properties.as_ref().and_then(|p| p.correlation_id().clone());
     // Call the handler with the request.
     let response = handler.call(&mut req).await;
     debug!(
@@ -111,7 +112,11 @@ where
         if let Some(correlation_id) = correlation_id {
             props = props.with_correlation_id(correlation_id);
         } else {
-            warn!("Request for handler {:?} did not contain a `correlation_id` property. A reply will be published, but the receiver may not recognize it as the reply for their request.", std::any::type_name::<H>());
+            let req_props = properties
+                .map(|p| format!("{p:?}"))
+                .unwrap_or_else(|| "<None>".into());
+
+            warn!("Request from handler {:?} did not contain a `correlation_id` property. A reply will be published, but the receiver may not recognize it as the reply for their request. (all properties: {req_props})", std::any::type_name::<H>());
         }
 
         // Warn in case of replying with an empty message, since this is _probably_ wrong or unintended.
@@ -142,7 +147,12 @@ where
     } else if !bytes_response.is_empty() {
         // We only warn if the response is not empty.
         // Empty responses may be produced by non-responding handlers, which is fine.
-        warn!("Received message for handler {:?} but the request did not contain a `reply_to` property, so no reply could be published.", std::any::type_name::<H>());
+        let handler = std::any::type_name::<H>();
+        let req_props = properties
+            .map(|p| format!("{p:?}"))
+            .unwrap_or_else(|| "<None>".into());
+
+        warn!("Received message from handler {handler:?} but the request did not contain a `reply_to` property, so no reply could be published (all properties: {req_props}).");
     };
 
     match req.delivery.map(|d| d.acker) {
