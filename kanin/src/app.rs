@@ -2,7 +2,7 @@
 
 mod task;
 
-use std::{any::Any, fmt, sync::Arc};
+use std::{any::Any, sync::Arc};
 
 use anymap::Map;
 use futures::future::{select_all, SelectAll};
@@ -49,8 +49,8 @@ impl App {
     /// This requires that the response type implements Respond (which is automatically implemented for protobuf messages).
     pub fn handler<H, Args, Res>(self, routing_key: impl Into<String>, handler: H) -> Self
     where
-        H: Handler<Args, Res> + Send + 'static,
-        Res: Respond + fmt::Debug + Send,
+        H: Handler<Args, Res>,
+        Res: Respond,
     {
         self.handler_with_config(routing_key, handler, Default::default())
     }
@@ -66,8 +66,8 @@ impl App {
         config: HandlerConfig,
     ) -> Self
     where
-        H: Handler<Args, Res> + Send + 'static,
-        Res: Respond + fmt::Debug + Send,
+        H: Handler<Args, Res>,
+        Res: Respond,
     {
         // Create and save the task factory - this is a function that creates the async task that will be run in tokio.
         self.handlers

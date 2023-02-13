@@ -1,6 +1,6 @@
 //! Types and utilities for the App's tokio tasks.
 
-use std::{fmt, pin::Pin, sync::Arc};
+use std::{pin::Pin, sync::Arc};
 
 use futures::{stream::FuturesUnordered, Future, StreamExt};
 use lapin::{
@@ -33,8 +33,8 @@ fn handler_task<H, Args, Res>(
     state: Arc<StateMap>,
 ) -> HandlerTask
 where
-    H: Handler<Args, Res> + Send + 'static,
-    Res: Respond + fmt::Debug + Send,
+    H: Handler<Args, Res>,
+    Res: Respond,
 {
     Box::pin(async move {
         // We keep a set of handles to all outstanding spawned tasks.
@@ -89,8 +89,8 @@ where
 /// Acks the request and responds with the given acker as appropriate.
 async fn handle_request<H, Args, Res>(mut req: Request, handler: H, channel: Channel)
 where
-    H: Handler<Args, Res> + Send + 'static,
-    Res: Respond + fmt::Debug + Send,
+    H: Handler<Args, Res>,
+    Res: Respond,
 {
     let properties = req.properties().cloned();
     let reply_to = properties.as_ref().and_then(|p| p.reply_to().clone());
@@ -196,8 +196,8 @@ impl TaskFactory {
     /// Constructs a new task factory from the given routing key and handler.
     pub(super) fn new<H, Args, Res>(routing_key: String, handler: H, config: HandlerConfig) -> Self
     where
-        H: Handler<Args, Res> + Send + 'static,
-        Res: Respond + fmt::Debug + Send,
+        H: Handler<Args, Res>,
+        Res: Respond,
     {
         // A task factory is a closure in a box that produces a handler task.
         Self {
