@@ -9,6 +9,7 @@ jobs:
   # Verifies that the formatting of the code conforms to the standard.
   format:
     name: Format
+    runs-on: ubuntu-latest
     steps:
     - name: Checkout
       uses: actions/checkout@v2
@@ -22,6 +23,7 @@ jobs:
   # Ensures that there are no lint warnings or type errors.
   lint:
     name: Lint
+    runs-on: ubuntu-latest
     steps:
     - name: Checkout
       uses: actions/checkout@v2
@@ -46,6 +48,7 @@ jobs:
   # Runs cargo deny, an auditing tool and dependency checker, among other things. See https://github.com/EmbarkStudios/cargo-deny
   audit:
     name: Audit
+    runs-on: ubuntu-latest
     steps:
     - name: Checkout
       uses: actions/checkout@v2
@@ -56,6 +59,7 @@ jobs:
   # Runs the test suite and deploys if this was pushed to main.
   test:
     name: Test
+    runs-on: ubuntu-latest
     steps:
     - name: Checkout
       uses: actions/checkout@v2
