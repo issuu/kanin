@@ -134,7 +134,7 @@ impl App {
             Err(e) => {
                 // The JoinError is either a task cancellation or a panic.
                 // We don't cancel tasks so this must be a handler panic.
-                panic!("A handler panicked: {:#}", e);
+                panic!("A handler panicked: {e:#}");
             }
         }
     }

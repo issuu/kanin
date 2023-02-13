@@ -25,8 +25,8 @@ impl Respond for MyResponse {
 impl FromError<HandlerError> for MyResponse {
     fn from_error(error: HandlerError) -> Self {
         match error {
-            HandlerError::InvalidRequest(e) => MyResponse(format!("Invalid request: {:#?}", e)),
-            HandlerError::Internal(e) => MyResponse(format!("Internal server error: {:#?}", e)),
+            HandlerError::InvalidRequest(e) => MyResponse(format!("Invalid request: {e:#?}")),
+            HandlerError::Internal(e) => MyResponse(format!("Internal server error: {e:#?}")),
         }
     }
 }
@@ -76,7 +76,7 @@ async fn handler_state_extractor(state: State<Arc<Mutex<Vec<String>>>>) -> MyRes
     state.lock().unwrap().push("handler_state_extractor".into());
     SYNC.get().unwrap().send(()).await.unwrap();
 
-    MyResponse(format!("handler_state_extractor: {:?}", state))
+    MyResponse(format!("handler_state_extractor: {state:?}"))
 }
 
 /// A handler that doesn't respond just doesn't return anything.
