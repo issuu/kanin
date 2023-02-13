@@ -1,11 +1,15 @@
 //! AMQP responses.
 
+use std::fmt;
+
 use prost::Message;
 
 /// A trait for types that may produce responses.
 ///
 /// This really just means they can be converted into a byte-stream.
-pub trait Respond {
+/// However, the type must also be able to be displayed for debugging purposes
+/// and be sent across threads during processing.
+pub trait Respond: fmt::Debug + Send {
     /// Creates the bytes payload of this value.
     fn respond(self) -> Vec<u8>;
 }

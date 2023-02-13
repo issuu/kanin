@@ -1,9 +1,12 @@
 //! Holds [QueueConfig]'s implementation.
 
-use lapin::options::QueueDeclareOptions;
-use lapin::types::{AMQPValue, FieldTable};
+use std::time::Duration;
 
-/// Detailed configuration of queue.
+use lapin::options::QueueDeclareOptions;
+use lapin::types::{AMQPValue, FieldTable, ShortString};
+
+/// Detailed configuration of a handler.
+#[derive(Clone, Debug)]
 pub struct HandlerConfig {
     /// Queue name to bind to. By default, this will be the same as whatever routing key is used for the handler.
     pub(crate) queue: Option<String>,
@@ -70,19 +73,51 @@ impl HandlerConfig {
 
     /// Queues will expire after a period of time only when they are not used (e.g. do not have consumers).
     /// See [documentation](https://www.rabbitmq.com/ttl.html#queue-ttl).
-    /// Value is in milliseconds, so `3600000 = 1 hour`.
-    pub fn with_expires(mut self, expires: u32) -> Self {
-        self.arguments
-            .insert("x-expires".into(), AMQPValue::LongUInt(expires));
+    pub fn with_expires(mut self, expires: Duration) -> Self {
+        let millis: u32 = expires
+            .as_millis()
+            .try_into()
+            .expect("Duration too long to fit milliseconds in 32 bits");
+
+        self.arguments.insert("x-expires".into(), millis.into());
         self
     }
 
-    /// Messages expires if not consumed within `message_ttl` milliseconds.
+    /// Messages expires if not consumed within `message_ttl`.
     /// See [documentation](https://www.rabbitmq.com/ttl.html#message-ttl-using-x-args).
-    /// Value is in milliseconds, so `3600000 = 1 hour`.
-    pub fn with_message_ttl(mut self, message_ttl: u32) -> Self {
-        self.arguments
-            .insert("x-message-ttl".into(), AMQPValue::LongUInt(message_ttl));
+    pub fn with_message_ttl(mut self, message_ttl: Duration) -> Self {
+        let millis: u32 = message_ttl
+            .as_millis()
+            .try_into()
+            .expect("Duration too long to fit milliseconds in 32 bits");
+
+        self.arguments.insert("x-message-ttl".into(), millis.into());
+        self
+    }
+
+    /// Sets the `x-dead-letter-exchange` argument on the queue. See also [RabbitMQ's documentation](https://www.rabbitmq.com/dlx.html).
+    pub fn with_dead_letter_exchange(mut self, dead_letter_exchange: String) -> Self {
+        self.arguments.insert(
+            "x-dead-letter-exchange".into(),
+            AMQPValue::LongString(dead_letter_exchange.into()),
+        );
+        self
+    }
+
+    /// Sets the `x-dead-letter-routing-key` argument on the queue. See also [RabbitMQ's documentation](https://www.rabbitmq.com/dlx.html).
+    pub fn with_dead_letter_routing_key(mut self, dead_letter_routing_key: String) -> Self {
+        self.arguments.insert(
+            "x-dead-letter-routing-key".into(),
+            AMQPValue::LongString(dead_letter_routing_key.into()),
+        );
+        self
+    }
+
+    /// Set any argument with any value.
+    ///
+    /// Prefer the more specific methods if you can, but you can use this for any specific argument you might want to set.
+    pub fn with_arg(mut self, arg: impl Into<ShortString>, value: impl Into<AMQPValue>) -> Self {
+        self.arguments.insert(arg.into(), value.into());
         self
     }
 }

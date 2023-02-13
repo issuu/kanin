@@ -1,0 +1,37 @@
+# Configuration for cargo-deny, which is run as part of CI.
+
+# Determines what licenses are allowed in dependencies.
+# More documentation for the licenses section can be found here:
+# https://embarkstudios.github.io/cargo-deny/checks/licenses/cfg.html
+[licenses]
+
+# Code without license is under general copyright and cannot be used without permission.
+unlicensed = "deny"
+
+# List of explicitly allowed licenses
+# See https://spdx.org/licenses/ for list of possible licenses
+allow = [
+	"Apache-2.0",
+	"BSD-2-Clause",
+	"BSD-3-Clause",
+	"ISC",
+	"MIT",
+	"OpenSSL",
+	"Unicode-DFS-2016",
+]
+
+# Need to clarify ring because it has complicated licensing rules.
+clarify = [
+	{ name = "ring", expression = "MIT AND ISC AND OpenSSL", license-files = [
+		{ path = "LICENSE", hash = 0xbd0eed23 },
+	] },
+]
+
+# This section is considered when running `cargo deny check bans`.
+# More documentation about the 'bans' section can be found here:
+# https://embarkstudios.github.io/cargo-deny/checks/bans/cfg.html
+[bans]
+
+# Lint level for when multiple versions of the same crate are detected
+# TODO: When cargo-deny supports this, it would be nice to deny this for certain crates, like prost.
+multiple-versions = "warn"
