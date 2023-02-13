@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: main
+
+jobs:
+  # Verifies that the formatting of the code conforms to the standard.
+  format:
+    name: Format
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+
+    - name: Check format
+      uses: actions-rs/cargo@v1
+      with:
+        command: fmt
+        args: --check --all
+
+  # Ensures that there are no lint warnings or type errors.
+  lint:
+    name: Lint
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+
+    - name: Install Protobuf (needed by prost)
+      run: |
+        curl -fsSLO https://github.com/protocolbuffers/protobuf/releases/download/v21.5/protoc-21.5-linux-x86_64.zip
+        mkdir /tmp/protoc
+        unzip protoc-*.zip -d /tmp/protoc
+        rm protoc-*.zip
+        chmod -R go+rX /tmp/protoc
+        sudo mv /tmp/protoc/bin/protoc /usr/local/bin/
+        sudo mv /tmp/protoc/include/* /usr/local/include/
+        rm -r /tmp/protoc
+
+    - name: Lint
+      uses: actions-rs/clippy-check@v1
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        args: --workspace --all-targets -- --deny warnings
+
+  # Runs cargo deny, an auditing tool and dependency checker, among other things. See https://github.com/EmbarkStudios/cargo-deny
+  audit:
+    name: Audit
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+
+    - name: Audit
+      uses: EmbarkStudios/cargo-deny-action@v1
+
+  # Runs the test suite and deploys if this was pushed to main.
+  test:
+    name: Test
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+
+    - name: Install Protobuf (needed by prost)
+      run: |
+        curl -fsSLO https://github.com/protocolbuffers/protobuf/releases/download/v21.5/protoc-21.5-linux-x86_64.zip
+        mkdir /tmp/protoc
+        unzip protoc-*.zip -d /tmp/protoc
+        rm protoc-*.zip
+        chmod -R go+rX /tmp/protoc
+        sudo mv /tmp/protoc/bin/protoc /usr/local/bin/
+        sudo mv /tmp/protoc/include/* /usr/local/include/
+        rm -r /tmp/protoc
+
+    - name: Install just
+      uses: actions-rs/cargo@v1
+      with:
+        command: install
+        args: just
+
+    - name: Run tests
+      run: just test
