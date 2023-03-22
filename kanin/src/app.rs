@@ -100,6 +100,7 @@ impl App {
     /// Connects to AMQP with the given address and calls [`run_with_connection`][App::run_with_connection] with the resulting connection.
     /// See [`run_with_connection`][App::run_with_connection] for more details.
     #[allow(clippy::missing_errors_doc)]
+    #[inline]
     pub async fn run(self, amqp_addr: &str) -> Result<()> {
         debug!("Connecting to AMQP on address: {amqp_addr:?} ...");
         let conn = Connection::connect(amqp_addr, ConnectionProperties::default()).await?;
@@ -121,6 +122,7 @@ impl App {
     ///
     /// # Panics
     /// On connection errors, the app will simply panic.
+    #[inline]
     pub async fn run_with_connection(self, conn: &Connection) -> Result<()> {
         let handles = self.setup_handlers(conn).await?;
         let (returning_handler, _remaining_handlers_count, _leftover_handlers) = handles.await;
