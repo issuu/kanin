@@ -7,11 +7,12 @@ use std::{any::Any, sync::Arc};
 use anymap::Map;
 use futures::future::{select_all, SelectAll};
 use lapin::{self, Connection, ConnectionProperties};
-use log::{debug, info, trace};
+use log::{debug, error, info, trace};
 use tokio::task::JoinHandle;
 
 use self::task::TaskFactory;
 use crate::{extract::State, Error, Handler, HandlerConfig, Respond, Result};
+use tokio::sync::mpsc::{channel, Receiver, Sender};
 
 /// Apps can hold any type as state. These types can then be extracted in handlers. This state is stored in a type-map.
 pub(crate) type StateMap = Map<dyn Any + Send + Sync>;
@@ -149,9 +150,15 @@ impl App {
         if self.handlers.is_empty() {
             return Err(Error::NoHandlers);
         }
-        conn.on_error(|e| {
-            panic!("Connection returned error: {e:#}");
+
+        // Set up connection error handling
+        // Note that we use a mpsc channel (e.g. instead of a oneshot channel) in order to do a blocking_send from a non-aync closure
+        let (s, mut r): (Sender<i8>, Receiver<i8>) = channel(1);
+        conn.on_error(move |e| {
+            error!("Connection returned error: {e:#}");
+            let _ = s.blocking_send(1);
         });
+
         let mut join_handles = Vec::new();
         let state = Arc::new(self.state);
         for task_factory in self.handlers.into_iter() {
@@ -171,6 +178,13 @@ impl App {
             join_handles.len(),
             if join_handles.len() == 1 { "" } else { "s" }
         );
+
+        // Handle connection errors
+        let error_task = tokio::spawn(async move {
+            let _ = r.recv().await;
+            panic!("Connection error");
+        });
+        join_handles.push(error_task);
 
         Ok(select_all(join_handles))
     }
