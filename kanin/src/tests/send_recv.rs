@@ -239,7 +239,6 @@ async fn it_receives_various_messages_and_works_as_expected() {
     );
 }
 
-/// At the moment, this just verifies that the above handlers compile and work as handlers.
 #[tokio::test]
 async fn it_handles_connection_errors() {
     init_logging();
