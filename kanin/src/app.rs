@@ -152,11 +152,10 @@ impl App {
         }
 
         // Set up connection error handling
-        // Note that we use a mpsc channel (e.g. instead of a oneshot channel) in order to do a blocking_send from a non-aync closure
         let (s, mut r): (Sender<i8>, Receiver<i8>) = channel(1);
         conn.on_error(move |e| {
             error!("Connection returned error: {e:#}");
-            let _ = s.blocking_send(1);
+            let _ = s.send(1);
         });
 
         let mut join_handles = Vec::new();
