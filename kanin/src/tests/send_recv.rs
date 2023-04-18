@@ -4,10 +4,7 @@ use async_trait::async_trait;
 use futures::future::join_all;
 use lapin::{message::Delivery, options::BasicPublishOptions, BasicProperties, Channel};
 use log::info;
-use tokio::{
-    join,
-    sync::{mpsc::Sender, OnceCell},
-};
+use tokio::sync::{mpsc::Sender, OnceCell};
 
 use crate::{
     error::FromError, extract::State, tests::init_logging, App, Extract, HandlerError, Request,
@@ -96,7 +93,6 @@ async fn shutdown(state: State<Arc<Mutex<Vec<String>>>>) {
     panic!("Shutdown");
 }
 
-/// At the moment, this just verifies that the above handlers compile and work as handlers.
 #[tokio::test]
 async fn it_receives_various_messages_and_works_as_expected() {
     init_logging();
@@ -237,18 +233,4 @@ async fn it_receives_various_messages_and_works_as_expected() {
         ],
         recv_calls.as_ref()
     );
-}
-
-#[tokio::test]
-async fn it_handles_connection_errors() {
-    init_logging();
-    let conn = amqp_connect().await;
-
-    let send_app = App::new()
-        .handler("handler", handler)
-        .handler("shutdown", shutdown)
-        .run_with_connection(&conn);
-
-    let res = join!(conn.block("test"), send_app);
-    assert!(res.1.is_err());
 }

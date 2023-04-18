@@ -12,7 +12,7 @@ use tokio::task::JoinHandle;
 
 use self::task::TaskFactory;
 use crate::{extract::State, Error, Handler, HandlerConfig, Respond, Result};
-use tokio::sync::mpsc::{channel, Receiver, Sender};
+use tokio::sync::mpsc;
 
 /// Apps can hold any type as state. These types can then be extracted in handlers. This state is stored in a type-map.
 pub(crate) type StateMap = Map<dyn Any + Send + Sync>;
@@ -151,11 +151,14 @@ impl App {
             return Err(Error::NoHandlers);
         }
 
-        // Set up connection error handling
-        let (s, mut r): (Sender<i8>, Receiver<i8>) = channel(1);
+        // If the connection fails, we want to panic the entire application.
+        // We could consider possibly trying a restart somehow, but that seems complicated. Simpler to just restart.
+        let (send, mut recv) = mpsc::channel(1);
         conn.on_error(move |e| {
             error!("Connection returned error: {e:#}");
-            let _ = s.blocking_send(1);
+            send.blocking_send(())
+                .expect("failed to send connection error message");
+            panic!("panicking due to connection error");
         });
 
         let mut join_handles = Vec::new();
@@ -178,12 +181,14 @@ impl App {
             if join_handles.len() == 1 { "" } else { "s" }
         );
 
-        // Handle connection errors
-        let error_task = tokio::spawn(async move {
-            let _ = r.recv().await;
-            panic!("Connection error");
-        });
-        join_handles.push(error_task);
+        // We add one additional task which merely listens for a message from the `on_error` closure on the connection.
+        // This should ensure that we notify the user of the error via a panic if the connection runs into an error.
+        join_handles.push(tokio::spawn(async move {
+            recv.recv()
+                .await
+                .expect("failed to receive connection error message");
+            panic!("received message indicating a connection error has occurred");
+        }));
 
         Ok(select_all(join_handles))
     }
