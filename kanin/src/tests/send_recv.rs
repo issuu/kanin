@@ -93,7 +93,6 @@ async fn shutdown(state: State<Arc<Mutex<Vec<String>>>>) {
     panic!("Shutdown");
 }
 
-/// At the moment, this just verifies that the above handlers compile and work as handlers.
 #[tokio::test]
 async fn it_receives_various_messages_and_works_as_expected() {
     init_logging();
