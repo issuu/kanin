@@ -18,6 +18,12 @@ pub struct HandlerConfig {
     pub(crate) options: QueueDeclareOptions,
     /// Queue arguments (aka. x-arguments).
     pub(crate) arguments: FieldTable,
+    /// True indicates that the handler should reply to messages (the default).
+    /// False indicates that the handler should *not* reply to messages.
+    ///
+    /// Note that using `()` as the response type from a handler is not sufficient for making the handler not respond,
+    /// as `()` implements [`prost::Message`], making it a valid protobuf response message.
+    pub(crate) should_reply: bool,
 }
 
 impl HandlerConfig {
@@ -120,6 +126,12 @@ impl HandlerConfig {
         self.arguments.insert(arg.into(), value.into());
         self
     }
+
+    /// Sets whether or not the handler should reply to messages. Defaults to true.
+    pub fn with_replies(mut self, should_reply: bool) -> Self {
+        self.should_reply = should_reply;
+        self
+    }
 }
 
 impl Default for HandlerConfig {
@@ -133,6 +145,7 @@ impl Default for HandlerConfig {
                 ..Default::default()
             },
             arguments: Default::default(),
+            should_reply: true,
         }
     }
 }
