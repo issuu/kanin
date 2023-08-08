@@ -109,7 +109,6 @@ async fn handle_request<H, Args, Res>(
 
     let bytes_response = response.respond();
 
-    // Note that if the request did not contain a reply_to, we don't even try to reply (how would we?).
     match (should_reply, reply_to) {
         // We're supposed to reply and we have a reply_to queue: Reply.
         (true, Some(reply_to)) => {
