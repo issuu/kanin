@@ -31,6 +31,7 @@ fn handler_task<H, Args, Res>(
     channel: Channel,
     mut consumer: Consumer,
     state: Arc<StateMap>,
+    should_reply: bool,
 ) -> HandlerTask
 where
     H: Handler<Args, Res>,
@@ -78,7 +79,7 @@ where
             // Requests are handled and replied to concurrently.
             // This allows each handler task to process multiple requests at once.
             tasks.push(tokio::spawn(async move {
-                handle_request(req, handler, channel).await;
+                handle_request(req, handler, channel, should_reply).await;
             }));
         }
     })
@@ -87,8 +88,12 @@ where
 /// Handles the given request with the given handler and channel.
 ///
 /// Acks the request and responds with the given acker as appropriate.
-async fn handle_request<H, Args, Res>(mut req: Request, handler: H, channel: Channel)
-where
+async fn handle_request<H, Args, Res>(
+    mut req: Request,
+    handler: H,
+    channel: Channel,
+    should_reply: bool,
+) where
     H: Handler<Args, Res>,
     Res: Respond,
 {
@@ -104,55 +109,71 @@ where
 
     let bytes_response = response.respond();
 
-    // If we were given a way to reply, use it to reply.
-    // Note that if the request did not contain a reply_to, we don't even try to reply (how would we?).
-    if let Some(reply_to) = reply_to {
-        let mut props = BasicProperties::default();
+    match (should_reply, reply_to) {
+        // We're supposed to reply and we have a reply_to queue: Reply.
+        (true, Some(reply_to)) => {
+            let mut props = BasicProperties::default();
 
-        if let Some(correlation_id) = correlation_id {
-            props = props.with_correlation_id(correlation_id);
-        } else {
+            if let Some(correlation_id) = correlation_id {
+                props = props.with_correlation_id(correlation_id);
+            } else {
+                let req_props = properties
+                    .map(|p| format!("{p:?}"))
+                    .unwrap_or_else(|| "<None>".into());
+
+                warn!("Request from handler {:?} did not contain a `correlation_id` property. A reply will be published, but the receiver may not recognize it as the reply for their request. (all properties: {req_props})", std::any::type_name::<H>());
+            }
+
+            // Warn in case of replying with an empty message, since this is _probably_ wrong or unintended.
+            if bytes_response.is_empty() {
+                warn!("Handler {:?} produced an empty response to a message with a `reply_to` property. This is probably undesired, as the caller likely expects more of a response.", std::any::type_name::<H>());
+            }
+
+            let publish = channel
+                .basic_publish(
+                    HandlerConfig::DEFAULT_EXCHANGE,
+                    reply_to.as_str(),
+                    BasicPublishOptions::default(),
+                    &bytes_response,
+                    props,
+                )
+                .await;
+
+            match publish {
+                Ok(_confirm) => {
+                    debug!("Successfully published reply to routing key \"{reply_to}\"");
+                }
+                // We tried to reply but somehow our response never got published.
+                // We'll log an error in this case. Panicking probably doesn't help much.
+                Err(e) => {
+                    error!("Error when publishing reply to routing key \"{reply_to}\": {e:#}");
+                }
+            }
+        }
+        // We are supposed to reply, but the request did not have a reply_to.
+        // Even worse, the response we produced is non-empty - it was probably meant to be received by someone!
+        // In this case, we warn. Empty responses may be produced by non-responding handlers, which is fine.
+        (true, None) if !bytes_response.is_empty() => {
+            let handler = std::any::type_name::<H>();
             let req_props = properties
                 .map(|p| format!("{p:?}"))
                 .unwrap_or_else(|| "<None>".into());
 
-            warn!("Request from handler {:?} did not contain a `correlation_id` property. A reply will be published, but the receiver may not recognize it as the reply for their request. (all properties: {req_props})", std::any::type_name::<H>());
+            warn!("Received non-empty message from handler {handler:?} but the request did not contain a `reply_to` property, so no reply could be published (all properties: {req_props}).");
         }
+        // We are supposed to reply, but the request did not have a reply_to.
+        // However we produced an empty response, so it's not like the caller missed any information.
+        // In this case, we just debug log and leave it as is. This was probably intentional.
+        (true, None) => {
+            let handler = std::any::type_name::<H>();
+            let req_props = properties
+                .map(|p| format!("{p:?}"))
+                .unwrap_or_else(|| "<None>".into());
 
-        // Warn in case of replying with an empty message, since this is _probably_ wrong or unintended.
-        if bytes_response.is_empty() {
-            warn!("Handler {:?} produced an empty response to a message with a `reply_to` property. This is probably undesired, as the caller likely expects more of a response.", std::any::type_name::<H>());
+            debug!("Received empty message from handler {handler:?} which has should_reply = true; however the request did not contain a `reply_to` property, so no reply could be published (all properties: {req_props}). This is probably not an issue since the caller did not miss any information.");
         }
-
-        let publish = channel
-            .basic_publish(
-                HandlerConfig::DEFAULT_EXCHANGE,
-                reply_to.as_str(),
-                BasicPublishOptions::default(),
-                &bytes_response,
-                props,
-            )
-            .await;
-
-        match publish {
-            Ok(_confirm) => {
-                debug!("Successfully published reply to routing key \"{reply_to}\"");
-            }
-            // We tried to reply but somehow our response never got published.
-            // We'll log an error in this case. Panicking probably doesn't help much.
-            Err(e) => {
-                error!("Error when publishing reply to routing key \"{reply_to}\": {e:#}");
-            }
-        }
-    } else if !bytes_response.is_empty() {
-        // We only warn if the response is not empty.
-        // Empty responses may be produced by non-responding handlers, which is fine.
-        let handler = std::any::type_name::<H>();
-        let req_props = properties
-            .map(|p| format!("{p:?}"))
-            .unwrap_or_else(|| "<None>".into());
-
-        warn!("Received message from handler {handler:?} but the request did not contain a `reply_to` property, so no reply could be published (all properties: {req_props}).");
+        // We are not supposed to reply so we won't.
+        (false, _) => (),
     };
 
     match req.delivery.map(|d| d.acker) {
@@ -199,13 +220,15 @@ impl TaskFactory {
         H: Handler<Args, Res>,
         Res: Respond,
     {
+        let should_reply = config.should_reply;
+
         // A task factory is a closure in a box that produces a handler task.
         Self {
             routing_key: routing_key.clone(),
             config,
             factory: Box::new(
                 move |channel: Channel, consumer: Consumer, state: Arc<StateMap>| {
-                    handler_task(routing_key, handler, channel, consumer, state)
+                    handler_task(routing_key, handler, channel, consumer, state, should_reply)
                 },
             ),
         }
