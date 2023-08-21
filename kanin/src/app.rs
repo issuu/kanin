@@ -70,9 +70,15 @@ impl App {
         H: Handler<Args, Res>,
         Res: Respond,
     {
+        let routing_key = routing_key.into();
+        debug!(
+            "Registering handler {} on routing key {routing_key:?} with config {config:?}",
+            std::any::type_name::<H>()
+        );
+
         // Create and save the task factory - this is a function that creates the async task that will be run in tokio.
         self.handlers
-            .push(TaskFactory::new(routing_key.into(), handler, config));
+            .push(TaskFactory::new(routing_key, handler, config));
 
         self
     }
@@ -87,6 +93,7 @@ impl App {
     /// # Panics
     /// Panics if the given type has already been registered with the app.
     pub fn state<T: Send + Sync + 'static>(mut self, value: T) -> Self {
+        debug!("Registering state for type {}", std::any::type_name::<T>());
         if self.state.insert(State(Arc::new(value))).is_some() {
             panic!(
                 "Attempted to register a state type, `{}` that had already been registered before! \
