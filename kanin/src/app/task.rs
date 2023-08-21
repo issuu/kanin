@@ -9,7 +9,7 @@ use lapin::{
     types::FieldTable,
     BasicProperties, Channel, Connection, Consumer,
 };
-use log::{debug, error, warn};
+use log::{debug, error, trace, warn};
 
 use crate::{Handler, HandlerConfig, Request, Respond};
 
@@ -245,10 +245,20 @@ impl TaskFactory {
         conn: &Connection,
         state_map: Arc<StateMap>,
     ) -> lapin::Result<HandlerTask> {
+        debug!(
+            "Building task for handler on routing key {:?}",
+            self.routing_key(),
+        );
+
         // Create the dedicated channel for this handler.
+        trace!("Creating channel for handler...");
         let channel = conn.create_channel().await?;
 
         // Set prefetch according to the desired configuration.
+        trace!(
+            "Reporting basic quality of service with prefetch {}...",
+            self.config.prefetch
+        );
         channel
             .basic_qos(self.config.prefetch, BasicQosOptions::default())
             .await?;
@@ -257,10 +267,16 @@ impl TaskFactory {
         let queue_name = self.config.queue.as_deref().unwrap_or(&self.routing_key);
 
         // Declare and bind the queue. AMQP states that we must do this before creating the consumer.
+        trace!("Declaring queue {queue_name:?} prior to binding...");
         channel
             .queue_declare(queue_name, self.config.options, self.config.arguments)
             .await?;
 
+        trace!(
+            "Binding to queue {queue_name:?} on exchange {:?} on routing key {:?}...",
+            self.config.exchange,
+            self.routing_key
+        );
         channel
             .queue_bind(
                 queue_name,
@@ -271,6 +287,7 @@ impl TaskFactory {
             )
             .await?;
 
+        trace!("Creating consumer on routing key {}...", self.routing_key);
         let consumer = channel
             .basic_consume(
                 queue_name,
