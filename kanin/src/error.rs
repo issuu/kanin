@@ -2,9 +2,9 @@
 
 use std::convert::Infallible;
 
-use log::{error, warn};
 use prost::DecodeError;
 use thiserror::Error as ThisError;
+use tracing::{error, warn};
 
 /// Errors that may be returned by `kanin`, especially when the app runs.
 #[derive(Debug, ThisError)]
@@ -14,7 +14,7 @@ pub enum Error {
     NoHandlers,
     /// An error from an underlying lapin call.
     #[error("An underlying `lapin` call failed: {0}")]
-    Lapin(#[from] lapin::Error),
+    Lapin(lapin::Error),
 }
 
 /// Errors that may be produced by handlers. Failing extractors provided by `kanin` return this error.
@@ -22,11 +22,11 @@ pub enum Error {
 pub enum HandlerError {
     /// Errors due to invalid requests.
     #[error("Invalid Request: {0:#}")]
-    InvalidRequest(#[from] RequestError),
+    InvalidRequest(RequestError),
 
     /// Internal server errors that are not the fault of clients.
     #[error("Internal Server Error: {0:#}")]
-    Internal(#[from] ServerError),
+    Internal(ServerError),
 }
 
 impl HandlerError {
@@ -42,7 +42,7 @@ pub enum RequestError {
     ///
     /// This error is left as an opaque error as that is what is provided by [`prost`].
     #[error("Message could not be decoded into the required type: {0:#}")]
-    DecodeError(#[from] DecodeError),
+    DecodeError(DecodeError),
 }
 
 /// Errors due to bad configuration or usage from the server-side.
@@ -91,7 +91,7 @@ where
 
 impl From<DecodeError> for HandlerError {
     fn from(e: DecodeError) -> Self {
-        RequestError::from(e).into()
+        HandlerError::InvalidRequest(RequestError::DecodeError(e))
     }
 }
 

@@ -13,13 +13,17 @@ readme = "../README.md"
 
 [dependencies]
 # Derive macros for traits in kanin.
-kanin_derive = "0.5.0"
+# kanin_derive = "0.5.1"
+kanin_derive = { path = "../kanin_derive" }
 
 # Lower level AMQP framework.
 lapin = "2.1.0"
 
-# Generalized logging framework.
-log = "0.4"
+# Generalized tracing framework.
+tracing = "0.1.37"
+
+# Used to create a unique req_id
+uuid = { version = "1.4.1", features = ["v4"] }
 
 # Asynchronous runtime.
 tokio = { version = "1.18.0", features = ["rt", "rt-multi-thread", "macros"] }

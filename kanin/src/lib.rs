@@ -146,7 +146,7 @@ mod tests {
     use std::time::Duration;
 
     use lapin::{Connection, ConnectionProperties};
-    use log::warn;
+    use tracing::warn;
 
     const TEST_AMQP_ADDR: &str = "amqp://localhost";
 

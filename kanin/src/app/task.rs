@@ -9,9 +9,9 @@ use lapin::{
     types::FieldTable,
     BasicProperties, Channel, Connection, Consumer,
 };
-use log::{debug, error, trace, warn};
+use tracing::{debug, error, info, info_span, trace, warn, Instrument};
 
-use crate::{Handler, HandlerConfig, Request, Respond};
+use crate::{extract::ReqId, Extract, Handler, HandlerConfig, Request, Respond};
 
 use super::StateMap;
 
@@ -25,6 +25,7 @@ use super::StateMap;
 pub(super) type HandlerTask = Pin<Box<dyn Future<Output = String> + Send>>;
 
 /// Creates the handler task for the given handler and routing key. See [`HandlerTask`].
+#[tracing::instrument(skip_all, field(routing_key = routing_key))]
 fn handler_task<H, Args, Res>(
     routing_key: String,
     handler: H,
@@ -47,7 +48,7 @@ where
             let delivery = tokio::select! {
                 // Listen on new deliveries.
                 delivery = consumer.next() => match delivery {
-                    // Received a delivery succesfully, just unwrap it from the option.
+                    // Received a delivery successfully, just unwrap it from the option.
                     Some(delivery) => delivery,
                     // We should only ever get to this point if the consumer is cancelled.
                     // We'll just return the routing key - might be a help for the user to see which
@@ -64,7 +65,7 @@ where
                 },
             };
 
-            let req = match delivery {
+            let mut req = match delivery {
                 Err(e) => {
                     error!("Error when receiving delivery on routing key \"{routing_key}\": {e:#}");
                     continue;
@@ -79,7 +80,11 @@ where
             // Requests are handled and replied to concurrently.
             // This allows each handler task to process multiple requests at once.
             tasks.push(tokio::spawn(async move {
-                handle_request(req, handler, channel, should_reply).await;
+                let req_id = ReqId::extract(&mut req).await.expect("infallible");
+
+                handle_request(req, handler, channel, should_reply)
+                    .instrument(info_span!("request", %req_id))
+                    .await;
             }));
         }
     })
@@ -100,12 +105,18 @@ async fn handle_request<H, Args, Res>(
     let properties = req.properties().cloned();
     let reply_to = properties.as_ref().and_then(|p| p.reply_to().clone());
     let correlation_id = properties.as_ref().and_then(|p| p.correlation_id().clone());
+    let app_id = properties
+        .as_ref()
+        .and_then(|p| p.app_id().as_ref())
+        .map(|app_id| app_id.as_str())
+        .unwrap_or("<unknown>");
+
+    let handler_name = std::any::type_name::<H>();
+    info!("Received request on handler {handler_name:?} from {app_id}",);
+
     // Call the handler with the request.
     let response = handler.call(&mut req).await;
-    debug!(
-        "Handler {:?} produced response: {response:?}",
-        std::any::type_name::<H>()
-    );
+    info!("Handler {handler_name:?} produced response: {response:?}",);
 
     let bytes_response = response.respond();
 

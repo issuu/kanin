@@ -1,9 +1,10 @@
 //! Interface for types that can extract themselves from requests.
 
 mod message;
+mod req_id;
 mod state;
 
-use std::convert::Infallible;
+use std::{convert::Infallible, error::Error};
 
 use async_trait::async_trait;
 use lapin::{acker::Acker, message::Delivery, Channel};
@@ -11,6 +12,7 @@ use lapin::{acker::Acker, message::Delivery, Channel};
 use crate::{error::HandlerError, Request};
 
 pub use message::Msg;
+pub use req_id::ReqId;
 pub use state::State;
 
 /// A trait for types that can be extracted from [requests](`Request`).
@@ -20,7 +22,7 @@ pub use state::State;
 #[async_trait]
 pub trait Extract: Sized {
     /// The error to return in case extraction fails.
-    type Error;
+    type Error: Error;
 
     /// Extract the type from the request.
     async fn extract(req: &mut Request) -> Result<Self, Self::Error>;
