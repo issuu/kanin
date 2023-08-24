@@ -13,6 +13,7 @@ use crate::{Extract, Request};
 pub struct ReqId(AMQPValue);
 
 impl ReqId {
+    /// Create a new ReqId with a random uuid.
     fn new() -> Self {
         let uuid = Uuid::new_v4();
         let amqp_value = AMQPValue::LongString(LongString::from(uuid.to_string()));
