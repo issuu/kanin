@@ -50,7 +50,7 @@ impl Request {
         self.delivery.as_ref().map(|d| &d.properties)
     }
 
-    /// Return `app_id` of the sender of the request.
+    /// Returns the `app_id` AMQP property of the request.
     pub fn app_id(&self) -> Option<&str> {
         self.properties()
             .and_then(|p| p.app_id().as_ref())
