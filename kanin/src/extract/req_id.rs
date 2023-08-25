@@ -4,7 +4,10 @@ use core::fmt;
 use std::convert::Infallible;
 
 use async_trait::async_trait;
-use lapin::types::{AMQPValue, LongString};
+use lapin::{
+    message::Delivery,
+    types::{AMQPValue, LongString},
+};
 use uuid::Uuid;
 
 use crate::{Extract, Request};
@@ -12,7 +15,8 @@ use crate::{Extract, Request};
 /// Request IDs allow concurrent logs to be associated with a unique request. It can also enable requests
 /// to be traced between different services by propagating the request IDs when calling other services.
 /// This type implements [`Extract`], so it can be used in handlers.
-pub struct ReqId(pub AMQPValue);
+#[derive(Debug, Clone)]
+pub struct ReqId(AMQPValue);
 
 impl ReqId {
     /// Create a new [`ReqId`] as a random UUID.
@@ -23,7 +27,8 @@ impl ReqId {
     }
 }
 
-/// [`AMQPValue`] does not implement `Display` but we provide a `Display` implementation for `ReqId` to allow it to be used in tracing spans (see the `tracing` crate).
+/// [`AMQPValue`] does not implement `Display` but we provide a `Display` implementation for
+/// `ReqId` to allow it to be used in tracing spans (see the `tracing` crate).
 impl fmt::Display for ReqId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.0 {
@@ -49,22 +54,25 @@ impl fmt::Display for ReqId {
     }
 }
 
+impl From<&Delivery> for ReqId {
+    fn from(delivery: &Delivery) -> Self {
+        let Some(headers) = delivery.properties.headers() else {
+            return Self::new();
+        };
+
+        let Some(req_id) = headers.inner().get("req_id") else {
+            return Self::new();
+        };
+
+        Self(req_id.clone())
+    }
+}
+
 #[async_trait]
 impl Extract for ReqId {
     type Error = Infallible;
 
     async fn extract(req: &mut Request) -> Result<Self, Self::Error> {
-        let Some(delivery) = &req.delivery else {
-            return Ok(Self::new());
-        };
-
-        let Some(headers) = delivery.properties.headers() else {
-            return Ok(Self::new());
-        };
-
-        match headers.inner().get("req_id") {
-            None => Ok(Self::new()),
-            Some(req_id) => Ok(Self(req_id.clone())),
-        }
+        Ok(req.req_id.clone())
     }
 }
