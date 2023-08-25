@@ -25,7 +25,6 @@ use super::StateMap;
 pub(super) type HandlerTask = Pin<Box<dyn Future<Output = String> + Send>>;
 
 /// Creates the handler task for the given handler and routing key. See [`HandlerTask`].
-#[tracing::instrument(skip_all, field(routing_key = routing_key))]
 fn handler_task<H, Args, Res>(
     routing_key: String,
     handler: H,

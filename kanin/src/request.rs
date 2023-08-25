@@ -29,7 +29,7 @@ impl Request {
         Self {
             state,
             channel,
-            req_id: ReqId::from(&delivery),
+            req_id: ReqId::from_delivery(&delivery),
             delivery: Some(delivery),
         }
     }

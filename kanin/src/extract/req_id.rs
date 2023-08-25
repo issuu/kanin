@@ -25,6 +25,20 @@ impl ReqId {
         let amqp_value = AMQPValue::LongString(LongString::from(uuid.to_string()));
         Self(amqp_value)
     }
+
+    /// Create a [`ReqId`] from an AMQP Delivery. If no `req_id` is found in the headers of the
+    /// message then a new one is created.
+    pub(crate) fn from_delivery(delivery: &Delivery) -> Self {
+        let Some(headers) = delivery.properties.headers() else {
+            return Self::new();
+        };
+
+        let Some(req_id) = headers.inner().get("req_id") else {
+            return Self::new();
+        };
+
+        Self(req_id.clone())
+    }
 }
 
 /// [`AMQPValue`] does not implement `Display` but we provide a `Display` implementation for
@@ -51,20 +65,6 @@ impl fmt::Display for ReqId {
             AMQPValue::ByteArray(v) => write!(f, "{v:?}"),
             AMQPValue::Void => write!(f, "Void"),
         }
-    }
-}
-
-impl From<&Delivery> for ReqId {
-    fn from(delivery: &Delivery) -> Self {
-        let Some(headers) = delivery.properties.headers() else {
-            return Self::new();
-        };
-
-        let Some(req_id) = headers.inner().get("req_id") else {
-            return Self::new();
-        };
-
-        Self(req_id.clone())
     }
 }
 
