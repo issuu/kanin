@@ -7,6 +7,7 @@ use lapin::protocol::basic::AMQPProperties;
 use lapin::{message::Delivery, Channel};
 
 use crate::app::StateMap;
+use crate::extract::ReqId;
 
 /// An AMQP request.
 #[derive(Debug)]
@@ -15,6 +16,9 @@ pub struct Request {
     state: Arc<StateMap>,
     /// The channel the message was received on.
     channel: Channel,
+    /// Request ID. This is a unique ID for every request. Either a newly created UUID or whatever
+    /// is found in the `req_id` header of the incoming AMQP message.
+    pub(crate) req_id: ReqId,
     /// The message delivery.
     pub(crate) delivery: Option<Delivery>,
 }
@@ -25,6 +29,7 @@ impl Request {
         Self {
             state,
             channel,
+            req_id: ReqId::from_delivery(&delivery),
             delivery: Some(delivery),
         }
     }
@@ -43,5 +48,12 @@ impl Request {
     /// Returns the AMQP properties of the request, unless the request was already extracted.
     pub fn properties(&self) -> Option<&AMQPProperties> {
         self.delivery.as_ref().map(|d| &d.properties)
+    }
+
+    /// Returns the `app_id` AMQP property of the request.
+    pub fn app_id(&self) -> Option<&str> {
+        self.properties()
+            .and_then(|p| p.app_id().as_ref())
+            .map(|app_id| app_id.as_str())
     }
 }

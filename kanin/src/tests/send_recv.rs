@@ -2,13 +2,20 @@ use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 use futures::future::join_all;
-use lapin::{message::Delivery, options::BasicPublishOptions, BasicProperties, Channel};
-use log::info;
+use lapin::{
+    message::Delivery,
+    options::BasicPublishOptions,
+    types::{AMQPValue, FieldTable},
+    BasicProperties, Channel,
+};
 use tokio::sync::{mpsc::Sender, OnceCell};
+use tracing::info;
 
 use crate::{
-    error::FromError, extract::State, tests::init_logging, App, Extract, HandlerError, Request,
-    Respond,
+    error::FromError,
+    extract::{ReqId, State},
+    tests::init_logging,
+    App, Extract, HandlerError, Request, Respond,
 };
 
 use super::amqp_connect;
@@ -67,6 +74,12 @@ async fn handler_delivery(_delivery: Delivery) -> MyResponse {
     MyResponse("handler_delivery".into())
 }
 
+async fn handler_req_id(req_id: ReqId) -> MyResponse {
+    assert_eq!(req_id.to_string(), "abc");
+    SYNC.get().unwrap().send(()).await.unwrap();
+    MyResponse("handler_req_id".into())
+}
+
 async fn handler_two_extractors(_channel: Channel, _delivery: Delivery) -> MyResponse {
     SYNC.get().unwrap().send(()).await.unwrap();
     MyResponse("handler_two_extractors".into())
@@ -107,6 +120,7 @@ async fn it_receives_various_messages_and_works_as_expected() {
         .handler("handler", handler)
         .handler("handler_channel", handler_channel)
         .handler("handler_delivery", handler_delivery)
+        .handler("handler_req_id", handler_req_id)
         .handler("handler_two_extractors", handler_two_extractors)
         .handler("handler_state_extractor", handler_state_extractor)
         .handler("listener", listener)
@@ -131,13 +145,18 @@ async fn it_receives_various_messages_and_works_as_expected() {
             .expect("failed to create channel");
 
         let send_msg = |routing_key: &'static str, reply_to: &'static str| async {
+            let mut headers = FieldTable::default();
+            headers.insert("req_id".into(), AMQPValue::LongString("abc".into()));
+
             channel
                 .basic_publish(
                     "",
                     routing_key,
                     BasicPublishOptions::default(),
                     &[],
-                    BasicProperties::default().with_reply_to(reply_to.into()),
+                    BasicProperties::default()
+                        .with_reply_to(reply_to.into())
+                        .with_headers(headers),
                 )
                 .await
                 .expect("failed to publish");
@@ -159,6 +178,9 @@ async fn it_receives_various_messages_and_works_as_expected() {
         recv.recv().await.unwrap();
         recv.recv().await.unwrap();
         send_msg("handler_delivery", "handler_message_reply_to").await;
+        recv.recv().await.unwrap();
+        recv.recv().await.unwrap();
+        send_msg("handler_req_id", "handler_message_reply_to").await;
         recv.recv().await.unwrap();
         recv.recv().await.unwrap();
         send_msg("handler_two_extractors", "handler_message_reply_to").await;
@@ -213,6 +235,7 @@ async fn it_receives_various_messages_and_works_as_expected() {
             // "handler",
             // "handler_channel",
             // "handler_delivery",
+            // "handler_req_id",
             // "handler_two_extractors",
             "handler_state_extractor",
             "listener",
@@ -223,6 +246,7 @@ async fn it_receives_various_messages_and_works_as_expected() {
 
     assert_eq!(
         [
+            "handler_message",
             "handler_message",
             "handler_message",
             "handler_message",

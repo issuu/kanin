@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use derive_more::{Deref, DerefMut};
-use log::error;
+use tracing::error;
 
 use crate::{error::ServerError, Extract, HandlerError, Request};
 

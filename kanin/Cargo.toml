@@ -1,6 +1,6 @@
 [package]
 name = "kanin"
-version = "0.23.1"
+version = "0.24.0"
 edition = "2021"
 authors = ["Victor Nordam Suadicani <v.n.suadicani@gmail.com>"]
 description = "An RPC microservice framework for AMQP, protobuf and Rust built on lapin (https://github.com/amqp-rs/lapin)."
@@ -13,13 +13,16 @@ readme = "../README.md"
 
 [dependencies]
 # Derive macros for traits in kanin.
-kanin_derive = "0.5.0"
+kanin_derive = "0.5.2"
 
 # Lower level AMQP framework.
 lapin = "2.1.0"
 
-# Generalized logging framework.
-log = "0.4"
+# Generalized tracing framework.
+tracing = "0.1.37"
+
+# Used to create unique request IDs.
+uuid = { version = "1.4.1", features = ["v4"] }
 
 # Asynchronous runtime.
 tokio = { version = "1.18.0", features = ["rt", "rt-multi-thread", "macros"] }

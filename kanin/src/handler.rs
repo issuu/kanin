@@ -46,7 +46,10 @@ macro_rules! impl_handler {
                 $(
                     let $ty = match $ty::extract(req).await {
                         Ok(value) => value,
-                        Err(error) => return Res::from_error(error),
+                        Err(error) => {
+                            tracing::error!("{error}");
+                            return Res::from_error(error);
+                        }
                     };
                 )*
 

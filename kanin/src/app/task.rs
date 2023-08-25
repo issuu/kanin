@@ -9,7 +9,7 @@ use lapin::{
     types::FieldTable,
     BasicProperties, Channel, Connection, Consumer,
 };
-use log::{debug, error, trace, warn};
+use tracing::{debug, error, info, info_span, trace, warn, Instrument};
 
 use crate::{Handler, HandlerConfig, Request, Respond};
 
@@ -47,7 +47,7 @@ where
             let delivery = tokio::select! {
                 // Listen on new deliveries.
                 delivery = consumer.next() => match delivery {
-                    // Received a delivery succesfully, just unwrap it from the option.
+                    // Received a delivery successfully, just unwrap it from the option.
                     Some(delivery) => delivery,
                     // We should only ever get to this point if the consumer is cancelled.
                     // We'll just return the routing key - might be a help for the user to see which
@@ -79,7 +79,11 @@ where
             // Requests are handled and replied to concurrently.
             // This allows each handler task to process multiple requests at once.
             tasks.push(tokio::spawn(async move {
-                handle_request(req, handler, channel, should_reply).await;
+                let span = info_span!("request", req_id = %req.req_id);
+
+                handle_request(req, handler, channel, should_reply)
+                    .instrument(span)
+                    .await;
             }));
         }
     })
@@ -100,14 +104,22 @@ async fn handle_request<H, Args, Res>(
     let properties = req.properties().cloned();
     let reply_to = properties.as_ref().and_then(|p| p.reply_to().clone());
     let correlation_id = properties.as_ref().and_then(|p| p.correlation_id().clone());
+    let app_id = req.app_id().unwrap_or("<unknown>");
+
+    let handler_name = std::any::type_name::<H>();
+    info!("Received request on handler {handler_name:?} from {app_id}");
+
+    let t = std::time::Instant::now();
+
     // Call the handler with the request.
     let response = handler.call(&mut req).await;
-    debug!(
-        "Handler {:?} produced response: {response:?}",
-        std::any::type_name::<H>()
-    );
+
+    debug!("Handler {handler_name:?} produced response {response:?}");
 
     let bytes_response = response.respond();
+
+    // Includes time for decoding request and encoding response, but *not* the time to publish the response.
+    let elapsed = t.elapsed();
 
     match (should_reply, reply_to) {
         // We're supposed to reply and we have a reply_to queue: Reply.
@@ -121,12 +133,17 @@ async fn handle_request<H, Args, Res>(
                     .map(|p| format!("{p:?}"))
                     .unwrap_or_else(|| "<None>".into());
 
-                warn!("Request from handler {:?} did not contain a `correlation_id` property. A reply will be published, but the receiver may not recognize it as the reply for their request. (all properties: {req_props})", std::any::type_name::<H>());
+                warn!("Request from handler {handler_name:?} did not contain a `correlation_id` property. A reply will be published, but the receiver may not recognize it as the reply for their request. (all properties: {req_props})");
             }
 
             // Warn in case of replying with an empty message, since this is _probably_ wrong or unintended.
             if bytes_response.is_empty() {
-                warn!("Handler {:?} produced an empty response to a message with a `reply_to` property. This is probably undesired, as the caller likely expects more of a response.", std::any::type_name::<H>());
+                warn!("Handler {handler_name:?} produced an empty response to a message with a `reply_to` property. This is probably undesired, as the caller likely expects more of a response (elapsed={elapsed:?})");
+            } else {
+                info!(
+                    "Response with {} bytes that will be published to {reply_to} (elapsed={elapsed:?})",
+                    bytes_response.len()
+                );
             }
 
             let publish = channel
@@ -159,21 +176,18 @@ async fn handle_request<H, Args, Res>(
                 .map(|p| format!("{p:?}"))
                 .unwrap_or_else(|| "<None>".into());
 
-            warn!("Received non-empty message from handler {handler:?} but the request did not contain a `reply_to` property, so no reply could be published (all properties: {req_props}).");
+            warn!("Received non-empty message from handler {handler:?} but the request did not contain a `reply_to` property, so no reply could be published (all properties: {req_props}, elapsed={elapsed:?}).");
         }
         // We are supposed to reply, but the request did not have a reply_to.
         // However we produced an empty response, so it's not like the caller missed any information.
-        // In this case, we just debug log and leave it as is. This was probably intentional.
         (true, None) => {
-            let handler = std::any::type_name::<H>();
-            let req_props = properties
-                .map(|p| format!("{p:?}"))
-                .unwrap_or_else(|| "<None>".into());
-
-            debug!("Received empty message from handler {handler:?} which has should_reply = true; however the request did not contain a `reply_to` property, so no reply could be published (all properties: {req_props}). This is probably not an issue since the caller did not miss any information.");
+            info!("Handler finished (empty, should_reply = true, elapsed={elapsed:?})");
         }
         // We are not supposed to reply so we won't.
-        (false, _) => (),
+        (false, _) => {
+            let len = bytes_response.len();
+            info!("Handler finished ({len} bytes, should_reply = false, elapsed={elapsed:?}).");
+        }
     };
 
     match req.delivery.map(|d| d.acker) {

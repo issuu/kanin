@@ -7,8 +7,8 @@ use std::{any::Any, sync::Arc};
 use anymap::Map;
 use futures::future::{select_all, SelectAll};
 use lapin::{self, Connection, ConnectionProperties};
-use log::{debug, error, info, trace};
 use tokio::task::JoinHandle;
+use tracing::{debug, error, info, trace};
 
 use self::task::TaskFactory;
 use crate::{extract::State, Error, Handler, HandlerConfig, Respond, Result};
@@ -111,7 +111,9 @@ impl App {
     #[inline]
     pub async fn run(self, amqp_addr: &str) -> Result<()> {
         debug!("Connecting to AMQP on address: {amqp_addr:?} ...");
-        let conn = Connection::connect(amqp_addr, ConnectionProperties::default()).await?;
+        let conn = Connection::connect(amqp_addr, ConnectionProperties::default())
+            .await
+            .map_err(Error::Lapin)?;
         trace!("Connected to AMQP on address: {amqp_addr:?}");
         self.run_with_connection(&conn).await
     }
@@ -177,7 +179,10 @@ impl App {
             );
 
             // Construct the task from the factory. This produces a pinned future which we can then spawn.
-            let task = task_factory.build(conn, state.clone()).await?;
+            let task = task_factory
+                .build(conn, state.clone())
+                .await
+                .map_err(Error::Lapin)?;
 
             // Spawn the task and save the join handle.
             join_handles.push(tokio::spawn(task));
