@@ -109,10 +109,17 @@ async fn handle_request<H, Args, Res>(
     let handler_name = std::any::type_name::<H>();
     info!("Received request on handler {handler_name:?} from {app_id}");
 
+    let t = std::time::Instant::now();
+
     // Call the handler with the request.
     let response = handler.call(&mut req).await;
 
+    debug!("Handler {handler_name:?} produced response {response:?}");
+
     let bytes_response = response.respond();
+
+    // Includes time for decoding request and encoding response, but *not* the time to publish the response.
+    let elapsed = t.elapsed();
 
     match (should_reply, reply_to) {
         // We're supposed to reply and we have a reply_to queue: Reply.
@@ -131,10 +138,10 @@ async fn handle_request<H, Args, Res>(
 
             // Warn in case of replying with an empty message, since this is _probably_ wrong or unintended.
             if bytes_response.is_empty() {
-                warn!("Handler {handler_name:?} produced an empty response to a message with a `reply_to` property. This is probably undesired, as the caller likely expects more of a response.");
+                warn!("Handler {handler_name:?} produced an empty response to a message with a `reply_to` property. This is probably undesired, as the caller likely expects more of a response (elapsed={elapsed:?})");
             } else {
                 info!(
-                    "Response with {} bytes that will be published to {reply_to}",
+                    "Response with {} bytes that will be published to {reply_to} (elapsed={elapsed:?})",
                     bytes_response.len()
                 );
             }
@@ -169,21 +176,18 @@ async fn handle_request<H, Args, Res>(
                 .map(|p| format!("{p:?}"))
                 .unwrap_or_else(|| "<None>".into());
 
-            warn!("Received non-empty message from handler {handler:?} but the request did not contain a `reply_to` property, so no reply could be published (all properties: {req_props}).");
+            warn!("Received non-empty message from handler {handler:?} but the request did not contain a `reply_to` property, so no reply could be published (all properties: {req_props}, elapsed={elapsed:?}).");
         }
         // We are supposed to reply, but the request did not have a reply_to.
         // However we produced an empty response, so it's not like the caller missed any information.
-        // In this case, we just debug log and leave it as is. This was probably intentional.
         (true, None) => {
-            let handler = std::any::type_name::<H>();
-            let req_props = properties
-                .map(|p| format!("{p:?}"))
-                .unwrap_or_else(|| "<None>".into());
-
-            debug!("Received empty message from handler {handler:?} which has should_reply = true; however the request did not contain a `reply_to` property, so no reply could be published (all properties: {req_props}). This is probably not an issue since the caller did not miss any information.");
+            info!("Handler finished (empty, should_reply = true, elapsed={elapsed:?})");
         }
         // We are not supposed to reply so we won't.
-        (false, _) => (),
+        (false, _) => {
+            let len = bytes_response.len();
+            info!("Handler finished ({len} bytes, should_reply = false, elapsed={elapsed:?}).");
+        }
     };
 
     match req.delivery.map(|d| d.acker) {
