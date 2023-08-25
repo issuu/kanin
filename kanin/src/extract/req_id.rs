@@ -23,6 +23,7 @@ impl ReqId {
     }
 }
 
+/// [`AMQPValue`] does not implement `Display` but we provide a `Display` implementation for `ReqId` to allow it to be used in tracing spans (see the `tracing` crate).
 impl fmt::Display for ReqId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.0 {
