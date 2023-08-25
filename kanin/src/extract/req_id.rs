@@ -1,4 +1,4 @@
-//! Req id ...
+//! Request IDs.
 
 use core::fmt;
 use std::convert::Infallible;
