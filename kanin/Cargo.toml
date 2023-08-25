@@ -22,7 +22,7 @@ lapin = "2.1.0"
 # Generalized tracing framework.
 tracing = "0.1.37"
 
-# Used to create a unique req_id
+# Used to create unique request IDs.
 uuid = { version = "1.4.1", features = ["v4"] }
 
 # Asynchronous runtime.
