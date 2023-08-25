@@ -49,7 +49,6 @@ impl fmt::Display for ReqId {
     }
 }
 
-/// Extract implementation for protobuf messages.
 #[async_trait]
 impl Extract for ReqId {
     type Error = Infallible;
