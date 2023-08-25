@@ -112,7 +112,6 @@ async fn handle_request<H, Args, Res>(
 
     // Call the handler with the request.
     let response = handler.call(&mut req).await;
-    info!("Handler produced response: {response:?}");
 
     let bytes_response = response.respond();
 
@@ -128,12 +127,17 @@ async fn handle_request<H, Args, Res>(
                     .map(|p| format!("{p:?}"))
                     .unwrap_or_else(|| "<None>".into());
 
-                warn!("Request from handler {:?} did not contain a `correlation_id` property. A reply will be published, but the receiver may not recognize it as the reply for their request. (all properties: {req_props})", std::any::type_name::<H>());
+                warn!("Request from handler {handler_name:?} did not contain a `correlation_id` property. A reply will be published, but the receiver may not recognize it as the reply for their request. (all properties: {req_props})");
             }
 
             // Warn in case of replying with an empty message, since this is _probably_ wrong or unintended.
             if bytes_response.is_empty() {
-                warn!("Handler {:?} produced an empty response to a message with a `reply_to` property. This is probably undesired, as the caller likely expects more of a response.", std::any::type_name::<H>());
+                warn!("Handler {handler_name:?} produced an empty response to a message with a `reply_to` property. This is probably undesired, as the caller likely expects more of a response.");
+            } else {
+                info!(
+                    "Response with {} bytes that will be published to {reply_to}",
+                    bytes_response.len()
+                );
             }
 
             let publish = channel
