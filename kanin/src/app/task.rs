@@ -116,7 +116,7 @@ async fn handle_request<H, Args, Res>(
 
     // Call the handler with the request.
     let response = handler.call(&mut req).await;
-    info!("Handler {handler_name:?} produced response: {response:?}",);
+    info!("Handler {handler_name:?} produced response: {response:?}");
 
     let bytes_response = response.respond();
 
