@@ -75,7 +75,7 @@ async fn handler_delivery(_delivery: Delivery) -> MyResponse {
 }
 
 async fn handler_req_id(req_id: ReqId) -> MyResponse {
-    assert_eq!(format!("{req_id}"), "abc");
+    assert_eq!(req_id.to_string(), "abc");
     SYNC.get().unwrap().send(()).await.unwrap();
     MyResponse("handler_req_id".into())
 }
