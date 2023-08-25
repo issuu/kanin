@@ -16,8 +16,8 @@ pub struct Request {
     state: Arc<StateMap>,
     /// The channel the message was received on.
     channel: Channel,
-    /// Request ID. This is a unique ID for every request. Either a newly created uuid or whatever
-    /// is found in the header of the incoming amqp message.
+    /// Request ID. This is a unique ID for every request. Either a newly created UUID or whatever
+    /// is found in the `req_id` header of the incoming AMQP message.
     pub(crate) req_id: ReqId,
     /// The message delivery.
     pub(crate) delivery: Option<Delivery>,
