@@ -112,7 +112,7 @@ async fn handle_request<H, Args, Res>(
         .unwrap_or("<unknown>");
 
     let handler_name = std::any::type_name::<H>();
-    info!("Received request on handler {handler_name:?} from {app_id}",);
+    info!("Received request on handler {handler_name:?} from {app_id}");
 
     // Call the handler with the request.
     let response = handler.call(&mut req).await;
