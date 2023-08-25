@@ -9,8 +9,10 @@ use uuid::Uuid;
 
 use crate::{Extract, Request};
 
-/// Request id.
-pub struct ReqId(AMQPValue);
+/// Request IDs allow concurrent logs to be associated with a unique request. It can also enable requests
+/// to be traced between different services by propagating the request IDs when calling other services.
+/// This type implements [`Extract`], so it can be used in handlers.
+pub struct ReqId(pub AMQPValue);
 
 impl ReqId {
     /// Create a new ReqId with a random uuid.
