@@ -10,8 +10,8 @@ edition = "2021"
 [dependencies]
 kanin = { path = "../kanin" }
 tokio = "1.18.0"
-prost = "0.11.0"
+prost = "0.12.0"
 log = "0.4.17"
 
 [build-dependencies]
-prost-build = "0.11.1"
+prost-build = "0.12.0"

@@ -79,6 +79,8 @@ impl HandlerConfig {
 
     /// Queues will expire after a period of time only when they are not used (e.g. do not have consumers).
     /// See [documentation](https://www.rabbitmq.com/ttl.html#queue-ttl).
+    // Panic is extremely unlikely, let's not bother.
+    #[allow(clippy::missing_panics_doc)]
     pub fn with_expires(mut self, expires: Duration) -> Self {
         let millis: u32 = expires
             .as_millis()
@@ -91,6 +93,8 @@ impl HandlerConfig {
 
     /// Messages expires if not consumed within `message_ttl`.
     /// See [documentation](https://www.rabbitmq.com/ttl.html#message-ttl-using-x-args).
+    // Panic is extremely unlikely, let's not bother.
+    #[allow(clippy::missing_panics_doc)]
     pub fn with_message_ttl(mut self, message_ttl: Duration) -> Self {
         let millis: u32 = message_ttl
             .as_millis()
