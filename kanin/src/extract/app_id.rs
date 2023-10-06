@@ -11,14 +11,6 @@ use crate::{Extract, Request};
 #[derive(Debug, Clone)]
 pub struct AppId(pub Option<String>);
 
-impl AppId {
-    /// Returns the underlying `app_id` if it was present in the request. Alternatively the
-    /// `default` is returned.
-    pub fn unwrap_or<'a>(&'a self, default: &'a str) -> &'a str {
-        self.0.as_deref().unwrap_or(default)
-    }
-}
-
 #[async_trait]
 impl Extract for AppId {
     type Error = Infallible;
