@@ -16,7 +16,7 @@ use crate::{Extract, Request};
 /// to be traced between different services by propagating the request IDs when calling other services.
 /// This type implements [`Extract`], so it can be used in handlers.
 #[derive(Debug, Clone)]
-pub struct ReqId(AMQPValue);
+pub struct ReqId(pub AMQPValue);
 
 impl ReqId {
     /// Create a new [`ReqId`] as a random UUID.
