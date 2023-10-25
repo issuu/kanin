@@ -13,7 +13,7 @@ use tracing::info;
 
 use crate::{
     error::FromError,
-    extract::{ReqId, State},
+    extract::{AppId, ReqId, State},
     tests::init_logging,
     App, Extract, HandlerError, Request, Respond,
 };
@@ -80,6 +80,12 @@ async fn handler_req_id(req_id: ReqId) -> MyResponse {
     MyResponse("handler_req_id".into())
 }
 
+async fn handler_app_id(AppId(app_id): AppId) -> MyResponse {
+    assert_eq!(app_id.unwrap(), "my_app_id");
+    SYNC.get().unwrap().send(()).await.unwrap();
+    MyResponse("handler_app_id".into())
+}
+
 async fn handler_two_extractors(_channel: Channel, _delivery: Delivery) -> MyResponse {
     SYNC.get().unwrap().send(()).await.unwrap();
     MyResponse("handler_two_extractors".into())
@@ -121,6 +127,7 @@ async fn it_receives_various_messages_and_works_as_expected() {
         .handler("handler_channel", handler_channel)
         .handler("handler_delivery", handler_delivery)
         .handler("handler_req_id", handler_req_id)
+        .handler("handler_app_id", handler_app_id)
         .handler("handler_two_extractors", handler_two_extractors)
         .handler("handler_state_extractor", handler_state_extractor)
         .handler("listener", listener)
@@ -156,6 +163,7 @@ async fn it_receives_various_messages_and_works_as_expected() {
                     &[],
                     BasicProperties::default()
                         .with_reply_to(reply_to.into())
+                        .with_app_id("my_app_id".into())
                         .with_headers(headers),
                 )
                 .await
@@ -181,6 +189,9 @@ async fn it_receives_various_messages_and_works_as_expected() {
         recv.recv().await.unwrap();
         recv.recv().await.unwrap();
         send_msg("handler_req_id", "handler_message_reply_to").await;
+        recv.recv().await.unwrap();
+        recv.recv().await.unwrap();
+        send_msg("handler_app_id", "handler_message_reply_to").await;
         recv.recv().await.unwrap();
         recv.recv().await.unwrap();
         send_msg("handler_two_extractors", "handler_message_reply_to").await;
@@ -236,6 +247,7 @@ async fn it_receives_various_messages_and_works_as_expected() {
             // "handler_channel",
             // "handler_delivery",
             // "handler_req_id",
+            // "handler_app_id",
             // "handler_two_extractors",
             "handler_state_extractor",
             "listener",
@@ -246,6 +258,7 @@ async fn it_receives_various_messages_and_works_as_expected() {
 
     assert_eq!(
         [
+            "handler_message",
             "handler_message",
             "handler_message",
             "handler_message",
