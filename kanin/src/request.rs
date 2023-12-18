@@ -36,8 +36,8 @@ impl Request {
 
     /// Returns the app state for the given type.
     /// Returns `None` if the app state has not been added to the app.
-    pub fn state<T: 'static + Send + Sync>(&self) -> Option<&T> {
-        self.state.get()
+    pub fn state<T: Clone + Send + Sync + 'static>(&self) -> Option<T> {
+        self.state.get().cloned()
     }
 
     /// Returns a reference to the [`Channel`] the message was delivered on.

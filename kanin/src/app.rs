@@ -11,7 +11,7 @@ use tokio::task::JoinHandle;
 use tracing::{debug, error, info, trace};
 
 use self::task::TaskFactory;
-use crate::{extract::State, Error, Handler, HandlerConfig, Respond, Result};
+use crate::{Error, Handler, HandlerConfig, Respond, Result};
 use tokio::sync::mpsc;
 
 /// Apps can hold any type as state. These types can then be extracted in handlers. This state is stored in a type-map.
@@ -26,13 +26,13 @@ pub struct App {
     /// A map from types to a single value of that type.
     /// This is used to hold the state values that users may want to store before running the app,
     /// and then extract in their handlers.
-    state: StateMap,
+    state_map: StateMap,
 }
 
 impl Default for App {
     fn default() -> Self {
         Self {
-            state: Map::new(),
+            state_map: Map::new(),
             handlers: Vec::default(),
         }
     }
@@ -92,9 +92,9 @@ impl App {
     ///
     /// # Panics
     /// Panics if the given type has already been registered with the app.
-    pub fn state<T: Send + Sync + 'static>(mut self, value: T) -> Self {
+    pub fn state<T: Clone + Send + Sync + 'static>(mut self, value: T) -> Self {
         debug!("Registering state for type {}", std::any::type_name::<T>());
-        if self.state.insert(State(Arc::new(value))).is_some() {
+        if self.state_map.insert(value).is_some() {
             panic!(
                 "Attempted to register a state type, `{}` that had already been registered before! \
                 You can only register one value of each type. If you need multiple values of the same type, \
@@ -171,7 +171,7 @@ impl App {
         });
 
         let mut join_handles = Vec::new();
-        let state = Arc::new(self.state);
+        let state_map = Arc::new(self.state_map);
         for task_factory in self.handlers.into_iter() {
             debug!(
                 "Spawning handler task for routing key: {:?} ...",
@@ -180,7 +180,7 @@ impl App {
 
             // Construct the task from the factory. This produces a pinned future which we can then spawn.
             let task = task_factory
-                .build(conn, state.clone())
+                .build(conn, state_map.clone())
                 .await
                 .map_err(Error::Lapin)?;
 
