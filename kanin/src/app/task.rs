@@ -171,22 +171,25 @@ async fn handle_request<H, Args, Res>(
         // Even worse, the response we produced is non-empty - it was probably meant to be received by someone!
         // In this case, we warn. Empty responses may be produced by non-responding handlers, which is fine.
         (true, None) if !bytes_response.is_empty() => {
-            let handler = std::any::type_name::<H>();
             let req_props = properties
                 .map(|p| format!("{p:?}"))
                 .unwrap_or_else(|| "<None>".into());
 
-            warn!("Received non-empty message from handler {handler:?} but the request did not contain a `reply_to` property, so no reply could be published (all properties: {req_props}, elapsed={elapsed:?}).");
+            warn!("Received non-empty message from handler {handler_name:?} but the request did not contain a `reply_to` property, so no reply could be published (all properties: {req_props}, elapsed={elapsed:?}).");
         }
         // We are supposed to reply, but the request did not have a reply_to.
         // However we produced an empty response, so it's not like the caller missed any information.
         (true, None) => {
-            info!("Handler finished (empty, should_reply = true, elapsed={elapsed:?})");
+            info!(
+                "Handler {handler_name} finished (empty, should_reply = true, elapsed={elapsed:?})",
+            );
         }
         // We are not supposed to reply so we won't.
         (false, _) => {
             let len = bytes_response.len();
-            info!("Handler finished ({len} bytes, should_reply = false, elapsed={elapsed:?}).");
+            info!(
+                "Handler {handler_name} finished ({len} bytes, should_reply = false, elapsed={elapsed:?}).",
+            );
         }
     };
 
