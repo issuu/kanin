@@ -43,9 +43,6 @@ derive_more = "0.99.17"
 # Great for structured errors.
 thiserror = "1.0.30"
 
-# Provides a map from types to a single value of that type.
-anymap = "1.0.0-beta.1"
-
 [dev-dependencies]
 # Concrete logging implementation.
 env_logger = "0.10.0"

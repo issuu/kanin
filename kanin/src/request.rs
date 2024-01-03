@@ -6,14 +6,13 @@ use lapin::protocol::basic::AMQPProperties;
 
 use lapin::{message::Delivery, Channel};
 
-use crate::app::StateMap;
 use crate::extract::ReqId;
 
 /// An AMQP request.
 #[derive(Debug)]
-pub struct Request {
+pub struct Request<S> {
     /// The app state. This is added to the app through [`crate::App::state`] and given to each request.
-    state: Arc<StateMap>,
+    state: Arc<S>,
     /// The channel the message was received on.
     channel: Channel,
     /// Request ID. This is a unique ID for every request. Either a newly created UUID or whatever
@@ -23,9 +22,9 @@ pub struct Request {
     pub(crate) delivery: Option<Delivery>,
 }
 
-impl Request {
+impl<S> Request<S> {
     /// Constructs a new request from a [`Channel`] and [`Delivery`].
-    pub fn new(channel: Channel, delivery: Delivery, state: Arc<StateMap>) -> Self {
+    pub fn new(channel: Channel, delivery: Delivery, state: Arc<S>) -> Self {
         Self {
             state,
             channel,
@@ -36,8 +35,11 @@ impl Request {
 
     /// Returns the app state for the given type.
     /// Returns `None` if the app state has not been added to the app.
-    pub fn state<T: Clone + Send + Sync + 'static>(&self) -> Option<T> {
-        self.state.get().cloned()
+    pub fn state<T>(&self) -> T
+    where
+        T: for<'a> From<&'a S>,
+    {
+        self.state.as_ref().into()
     }
 
     /// Returns a reference to the [`Channel`] the message was delivered on.

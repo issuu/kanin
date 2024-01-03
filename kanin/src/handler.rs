@@ -11,20 +11,21 @@ use crate::{error::FromError, extract::Extract, request::Request, response::Resp
 ///
 /// The trait implementations on functions of different arities allow handlers to have (almost) any number of parameters.
 #[async_trait]
-pub trait Handler<Args, Res: Respond>: Send + 'static + Clone {
+pub trait Handler<Args, Res: Respond, S>: Send + 'static + Clone {
     /// Calls the handler with the given request.
-    async fn call(self, req: &mut Request) -> Res;
+    async fn call(self, req: &mut Request<S>) -> Res;
 }
 
 /// Special-case the 0-args case to avoid unused variable warnings.
 #[async_trait]
-impl<Func, Fut, Res> Handler<(), Res> for Func
+impl<Func, Fut, Res, S> Handler<(), Res, S> for Func
 where
     Func: FnOnce() -> Fut + Send + 'static + Clone,
     Fut: Future<Output = Res> + Send,
     Res: Respond,
+    S: Send + Sync,
 {
-    async fn call(self, _req: &mut Request) -> Res {
+    async fn call(self, _req: &mut Request<S>) -> Res {
         self().await
     }
 }
@@ -34,15 +35,16 @@ macro_rules! impl_handler {
     ( $($ty:ident),* $(,)? ) => {
         #[allow(non_snake_case)]
         #[async_trait]
-        impl<Func, Fut, Res, $($ty,)*> Handler<($($ty,)*), Res> for Func
+        impl<Func, Fut, Res, S, $($ty,)*> Handler<($($ty,)*), Res, S> for Func
         where
             Func: FnOnce($($ty,)*) -> Fut + Send + 'static + Clone,
             Fut: Future<Output = Res> + Send,
             Res: Respond,
-            $( $ty: Extract + Send,)*
-            $( Res: FromError<<$ty as Extract>::Error>,)*
+            S: Send + Sync,
+            $( $ty: Extract<S> + Send,)*
+            $( Res: FromError<<$ty as Extract<S>>::Error>,)*
         {
-            async fn call(self, req: &mut Request) -> Res {
+            async fn call(self, req: &mut Request<S>) -> Res {
                 $(
                     let $ty = match $ty::extract(req).await {
                         Ok(value) => value,

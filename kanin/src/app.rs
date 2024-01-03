@@ -2,9 +2,8 @@
 
 mod task;
 
-use std::{any::Any, sync::Arc};
+use std::sync::Arc;
 
-use anymap::Map;
 use futures::future::{select_all, SelectAll};
 use lapin::{self, Connection, ConnectionProperties};
 use tokio::task::JoinHandle;
@@ -14,34 +13,34 @@ use self::task::TaskFactory;
 use crate::{Error, Handler, HandlerConfig, Respond, Result};
 use tokio::sync::mpsc;
 
-/// Apps can hold any type as state. These types can then be extracted in handlers. This state is stored in a type-map.
-pub(crate) type StateMap = Map<dyn Any + Send + Sync>;
-
 /// The central struct of your application.
 #[must_use = "The app will not do anything unless you call `.run`."]
-pub struct App {
+pub struct App<S> {
     /// A map from routing keys to task factories.
     /// Task factories are constructed in [`App::handler`] and called in [`App::run`].
-    handlers: Vec<TaskFactory>,
+    handlers: Vec<TaskFactory<S>>,
     /// A map from types to a single value of that type.
     /// This is used to hold the state values that users may want to store before running the app,
     /// and then extract in their handlers.
-    state_map: StateMap,
+    state: S,
 }
 
-impl Default for App {
+impl<S: Default> Default for App<S> {
     fn default() -> Self {
         Self {
-            state_map: Map::new(),
             handlers: Vec::default(),
+            state: S::default(),
         }
     }
 }
 
-impl App {
+impl<S> App<S> {
     /// Creates a new kanin app with the default configuration.
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(state: S) -> Self {
+        Self {
+            handlers: Vec::new(),
+            state,
+        }
     }
 
     /// Registers a new handler for the given routing key with the default prefetch count.
@@ -50,8 +49,9 @@ impl App {
     /// This requires that the response type implements Respond (which is automatically implemented for protobuf messages).
     pub fn handler<H, Args, Res>(self, routing_key: impl Into<String>, handler: H) -> Self
     where
-        H: Handler<Args, Res>,
+        H: Handler<Args, Res, S>,
         Res: Respond,
+        S: Send + Sync + 'static,
     {
         self.handler_with_config(routing_key, handler, Default::default())
     }
@@ -67,8 +67,9 @@ impl App {
         config: HandlerConfig,
     ) -> Self
     where
-        H: Handler<Args, Res>,
+        H: Handler<Args, Res, S>,
         Res: Respond,
+        S: Send + Sync + 'static,
     {
         let routing_key = routing_key.into();
         debug!(
@@ -92,18 +93,18 @@ impl App {
     ///
     /// # Panics
     /// Panics if the given type has already been registered with the app.
-    pub fn state<T: Clone + Send + Sync + 'static>(mut self, value: T) -> Self {
-        debug!("Registering state for type {}", std::any::type_name::<T>());
-        if self.state_map.insert(value).is_some() {
-            panic!(
-                "Attempted to register a state type, `{}` that had already been registered before! \
-                You can only register one value of each type. If you need multiple values of the same type, \
-                use the newtype pattern to signify the semantic difference between the two values.",
-                std::any::type_name::<T>()
-            );
-        }
-        self
-    }
+    // pub fn state<T: Clone + Send + Sync + 'static>(mut self, value: T) -> Self {
+    //     debug!("Registering state for type {}", std::any::type_name::<T>());
+    //     if self.state.insert(value).is_some() {
+    //         panic!(
+    //             "Attempted to register a state type, `{}` that had already been registered before! \
+    //             You can only register one value of each type. If you need multiple values of the same type, \
+    //             use the newtype pattern to signify the semantic difference between the two values.",
+    //             std::any::type_name::<T>()
+    //         );
+    //     }
+    //     self
+    // }
 
     /// Connects to AMQP with the given address and calls [`run_with_connection`][App::run_with_connection] with the resulting connection.
     /// See [`run_with_connection`][App::run_with_connection] for more details.
@@ -171,7 +172,7 @@ impl App {
         });
 
         let mut join_handles = Vec::new();
-        let state_map = Arc::new(self.state_map);
+        let state = Arc::new(self.state);
         for task_factory in self.handlers.into_iter() {
             debug!(
                 "Spawning handler task for routing key: {:?} ...",
@@ -180,7 +181,7 @@ impl App {
 
             // Construct the task from the factory. This produces a pinned future which we can then spawn.
             let task = task_factory
-                .build(conn, state_map.clone())
+                .build(conn, state.clone())
                 .await
                 .map_err(Error::Lapin)?;
 
