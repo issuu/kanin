@@ -47,7 +47,7 @@ macro_rules! impl_handler {
                     let $ty = match $ty::extract(req).await {
                         Ok(value) => value,
                         Err(error) => {
-                            tracing::error!("{error}");
+                            tracing::error!("Failed to extract {}: {error}", std::any::type_name::<$ty>());
                             return Res::from_error(error);
                         }
                     };

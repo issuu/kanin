@@ -32,13 +32,13 @@ impl HandlerConfig {
 
     /// The default exchange is indicated by the empty string in AMQP.
     /// Note that the default exchange is actually just a direct exchange with no name.
-    pub const DEFAULT_EXCHANGE: &str = "";
+    pub const DEFAULT_EXCHANGE: &'static str = "";
 
     /// The direct exchange. See <`https://www.rabbitmq.com/tutorials/tutorial-four-python.html`> for more information.
-    pub const DIRECT_EXCHANGE: &str = "amq.direct";
+    pub const DIRECT_EXCHANGE: &'static str = "amq.direct";
 
     /// The topic exchange. See <`https://www.rabbitmq.com/tutorials/tutorial-five-python.html`> for more information.
-    pub const TOPIC_EXCHANGE: &str = "amq.topic";
+    pub const TOPIC_EXCHANGE: &'static str = "amq.topic";
 
     /// Creates a new default QueueConfig.
     pub fn new() -> Self {

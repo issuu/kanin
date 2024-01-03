@@ -15,12 +15,12 @@ use crate::{Extract, Request};
 /// Request IDs allow concurrent logs to be associated with a unique request. It can also enable requests
 /// to be traced between different services by propagating the request IDs when calling other services.
 /// This type implements [`Extract`], so it can be used in handlers.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ReqId(pub AMQPValue);
 
 impl ReqId {
     /// Create a new [`ReqId`] as a random UUID.
-    fn new() -> Self {
+    pub fn new() -> Self {
         let uuid = Uuid::new_v4();
         let amqp_value = AMQPValue::LongString(LongString::from(uuid.to_string()));
         Self(amqp_value)
@@ -38,6 +38,12 @@ impl ReqId {
         };
 
         Self(req_id.clone())
+    }
+}
+
+impl Default for ReqId {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
