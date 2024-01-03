@@ -225,7 +225,7 @@ pub(super) struct TaskFactory<S> {
     routing_key: String,
     /// Configuration for the handler task produced by this task factory.
     config: HandlerConfig,
-    /// The factory function that constructs the handler task from the given channel, consumer and state map.
+    /// The factory function that constructs the handler task from the given channel, consumer and state.
     factory: Box<dyn FnOnce(Channel, Consumer, Arc<S>) -> HandlerTask + Send>,
 }
 
@@ -258,7 +258,7 @@ impl<S> TaskFactory<S> {
     pub(super) async fn build(
         self,
         conn: &Connection,
-        state_map: Arc<S>,
+        state: Arc<S>,
     ) -> lapin::Result<HandlerTask> {
         debug!(
             "Building task for handler on routing key {:?}",
@@ -312,6 +312,6 @@ impl<S> TaskFactory<S> {
             )
             .await?;
 
-        Ok((self.factory)(channel, consumer, state_map))
+        Ok((self.factory)(channel, consumer, state))
     }
 }

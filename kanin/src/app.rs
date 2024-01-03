@@ -19,9 +19,9 @@ pub struct App<S> {
     /// A map from routing keys to task factories.
     /// Task factories are constructed in [`App::handler`] and called in [`App::run`].
     handlers: Vec<TaskFactory<S>>,
-    /// A map from types to a single value of that type.
     /// This is used to hold the state values that users may want to store before running the app,
-    /// and then extract in their handlers.
+    /// and then extract in their handlers. Types that wish to be extracted via `State<T>` must
+    /// implement `From<&S>`.
     state: S,
 }
 
