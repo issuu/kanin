@@ -51,9 +51,6 @@ pub enum ServerError {
     /// A handler attempted to extract the delivery of a message twice.
     #[error("The delivery was already extracted from the request and could not be accessed")]
     DeliveryAlreadyExtracted,
-    /// A handler attempted to extract a [`crate::extract::State`] but the state type had not been added to the app.
-    #[error("The called handler was misconfigured. If you're the app owner, please see the logs for details")]
-    StateNotFound,
 }
 
 /// Types that may be constructed from errors.

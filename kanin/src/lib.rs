@@ -67,7 +67,7 @@
 //!
 //! #[tokio::main]
 //! async fn main() -> kanin::Result<()> {
-//!     App::new()
+//!     App::new(())
 //!         .handler("my_routing_key", echo)
 //!         .run("amqp://localhost")
 //!         .await
@@ -132,6 +132,7 @@ pub use error::HandlerError;
 pub use extract::Extract;
 pub use handler::Handler;
 pub use handler_config::HandlerConfig;
+pub use kanin_derive::AppState;
 pub use kanin_derive::FromError;
 pub use request::Request;
 pub use response::Respond;
@@ -141,6 +142,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[cfg(test)]
 mod tests {
+    mod basic;
     mod send_recv;
 
     use std::time::Duration;

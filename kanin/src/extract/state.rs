@@ -7,10 +7,12 @@ use derive_more::{Deref, DerefMut};
 
 use crate::{Extract, Request};
 
-/// `State` is an extractor helper struct that allows you to extract app state
-/// that has previously been added to the app through a call to [`crate::App::state`]
+/// `State` is an extractor helper struct that allows you to extract app state from the state type added in `App::new`.
 ///
-/// This implements `Deref` and `DerefMut` to the inner type.
+/// This implements `Deref` and `DerefMut` to the inner type, but the inner type is also public so you can also just take ownership if you prefer.
+///
+/// Any type that implements `From<&S>` where `S` is the app state given in `App::new` can be extracted via this type.
+/// These `From` implementations can be derived on a struct via `kanin::AppState`.
 #[derive(Debug, Deref, DerefMut)]
 pub struct State<T>(pub T);
 

@@ -11,7 +11,7 @@ use crate::extract::ReqId;
 /// An AMQP request.
 #[derive(Debug)]
 pub struct Request<S> {
-    /// The app state. This is added to the app through [`crate::App::state`] and given to each request.
+    /// The app state. This is added to the app at construction in [`crate::App::new`] and given to each request.
     state: Arc<S>,
     /// The channel the message was received on.
     channel: Channel,
@@ -34,7 +34,6 @@ impl<S> Request<S> {
     }
 
     /// Returns the app state for the given type.
-    /// Returns `None` if the app state has not been added to the app.
     pub fn state<T>(&self) -> T
     where
         T: for<'a> From<&'a S>,

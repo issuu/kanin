@@ -1,6 +1,6 @@
 [package]
 name = "kanin"
-version = "0.27.0"
+version = "0.28.0"
 edition = "2021"
 authors = ["Victor Nordam Suadicani <v.n.suadicani@gmail.com>"]
 description = "An RPC microservice framework for AMQP, protobuf and Rust built on lapin (https://github.com/amqp-rs/lapin)."
@@ -13,7 +13,7 @@ readme = "../README.md"
 
 [dependencies]
 # Derive macros for traits in kanin.
-kanin_derive = "0.5.2"
+kanin_derive = "0.6.0"
 
 # Lower level AMQP framework.
 lapin = "2.1.0"

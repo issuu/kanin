@@ -35,7 +35,7 @@ impl<S: Default> Default for App<S> {
 }
 
 impl<S> App<S> {
-    /// Creates a new kanin app with the default configuration.
+    /// Creates a new kanin app.
     pub fn new(state: S) -> Self {
         Self {
             handlers: Vec::new(),
@@ -83,28 +83,6 @@ impl<S> App<S> {
 
         self
     }
-
-    /// Adds a type as state to this app.
-    ///
-    /// An `App` may use any number of types as state. The app will contain one instance of each type.
-    ///
-    /// The state added to the app through this method can subsequently be used in request handlers,
-    /// by making use of the [`crate::extract::State`] extractor.
-    ///
-    /// # Panics
-    /// Panics if the given type has already been registered with the app.
-    // pub fn state<T: Clone + Send + Sync + 'static>(mut self, value: T) -> Self {
-    //     debug!("Registering state for type {}", std::any::type_name::<T>());
-    //     if self.state.insert(value).is_some() {
-    //         panic!(
-    //             "Attempted to register a state type, `{}` that had already been registered before! \
-    //             You can only register one value of each type. If you need multiple values of the same type, \
-    //             use the newtype pattern to signify the semantic difference between the two values.",
-    //             std::any::type_name::<T>()
-    //         );
-    //     }
-    //     self
-    // }
 
     /// Connects to AMQP with the given address and calls [`run_with_connection`][App::run_with_connection] with the resulting connection.
     /// See [`run_with_connection`][App::run_with_connection] for more details.
