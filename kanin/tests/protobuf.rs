@@ -15,7 +15,7 @@ async fn proto_handler(Msg(request): Msg<EchoRequest>) -> EchoResponse {
 
 #[tokio::test]
 async fn it_compiles() {
-    let _ignore = App::new()
+    let _ignore = App::new(())
         .handler("routing_key", proto_handler)
         .run("amqp_addr")
         .await;

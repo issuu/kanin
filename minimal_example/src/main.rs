@@ -11,7 +11,7 @@ async fn echo(Msg(request): Msg<EchoRequest>) -> EchoResponse {
 
 #[tokio::main]
 async fn main() -> kanin::Result<()> {
-    App::new()
+    App::new(())
         .handler("my_routing_key", echo)
         .run("amqp_addr")
         .await

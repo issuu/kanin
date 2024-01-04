@@ -13,8 +13,6 @@ use tracing::{debug, error, info, info_span, trace, warn, Instrument};
 
 use crate::{Handler, HandlerConfig, Request, Respond};
 
-use super::StateMap;
-
 /// Handler tasks are the async functions that are run in the tokio tasks to perform handlers.
 ///
 /// They use a given consumer and channel handle in order to receive AMQP deliveries.
@@ -25,17 +23,18 @@ use super::StateMap;
 pub(super) type HandlerTask = Pin<Box<dyn Future<Output = String> + Send>>;
 
 /// Creates the handler task for the given handler and routing key. See [`HandlerTask`].
-fn handler_task<H, Args, Res>(
+fn handler_task<H, S, Args, Res>(
     routing_key: String,
     handler: H,
     channel: Channel,
     mut consumer: Consumer,
-    state: Arc<StateMap>,
+    state: Arc<S>,
     should_reply: bool,
 ) -> HandlerTask
 where
-    H: Handler<Args, Res>,
+    H: Handler<Args, Res, S>,
     Res: Respond,
+    S: Send + Sync + 'static,
 {
     Box::pin(async move {
         // We keep a set of handles to all outstanding spawned tasks.
@@ -92,13 +91,13 @@ where
 /// Handles the given request with the given handler and channel.
 ///
 /// Acks the request and responds with the given acker as appropriate.
-async fn handle_request<H, Args, Res>(
-    mut req: Request,
+async fn handle_request<H, S, Args, Res>(
+    mut req: Request<S>,
     handler: H,
     channel: Channel,
     should_reply: bool,
 ) where
-    H: Handler<Args, Res>,
+    H: Handler<Args, Res, S>,
     Res: Respond,
 {
     let properties = req.properties().cloned();
@@ -221,21 +220,22 @@ async fn handle_request<H, Args, Res>(
 /// 3. User calls [`App::run`][crate::App::run], creating tasks from all the task factories that are then run in tokio.
 ///
 /// [`App`]: crate::App
-pub(super) struct TaskFactory {
+pub(super) struct TaskFactory<S> {
     /// The routing key of the handler task produced by this task factory.
     routing_key: String,
     /// Configuration for the handler task produced by this task factory.
     config: HandlerConfig,
-    /// The factory function that constructs the handler task from the given channel, consumer and state map.
-    factory: Box<dyn FnOnce(Channel, Consumer, Arc<StateMap>) -> HandlerTask + Send>,
+    /// The factory function that constructs the handler task from the given channel, consumer and state.
+    factory: Box<dyn FnOnce(Channel, Consumer, Arc<S>) -> HandlerTask + Send>,
 }
 
-impl TaskFactory {
+impl<S> TaskFactory<S> {
     /// Constructs a new task factory from the given routing key and handler.
     pub(super) fn new<H, Args, Res>(routing_key: String, handler: H, config: HandlerConfig) -> Self
     where
-        H: Handler<Args, Res>,
+        H: Handler<Args, Res, S>,
         Res: Respond,
+        S: Send + Sync + 'static,
     {
         let should_reply = config.should_reply;
 
@@ -243,11 +243,9 @@ impl TaskFactory {
         Self {
             routing_key: routing_key.clone(),
             config,
-            factory: Box::new(
-                move |channel: Channel, consumer: Consumer, state: Arc<StateMap>| {
-                    handler_task(routing_key, handler, channel, consumer, state, should_reply)
-                },
-            ),
+            factory: Box::new(move |channel: Channel, consumer: Consumer, state: Arc<S>| {
+                handler_task(routing_key, handler, channel, consumer, state, should_reply)
+            }),
         }
     }
 
@@ -260,7 +258,7 @@ impl TaskFactory {
     pub(super) async fn build(
         self,
         conn: &Connection,
-        state_map: Arc<StateMap>,
+        state: Arc<S>,
     ) -> lapin::Result<HandlerTask> {
         debug!(
             "Building task for handler on routing key {:?}",
@@ -314,6 +312,6 @@ impl TaskFactory {
             )
             .await?;
 
-        Ok((self.factory)(channel, consumer, state_map))
+        Ok((self.factory)(channel, consumer, state))
     }
 }

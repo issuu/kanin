@@ -1,15 +1,30 @@
 //! Allows extracting app state.
 
+use std::convert::Infallible;
+
 use async_trait::async_trait;
 use derive_more::{Deref, DerefMut};
-use tracing::error;
 
-use crate::{error::ServerError, Extract, HandlerError, Request};
+use crate::{Extract, Request};
 
-/// `State` is an extractor helper struct that allows you to extract app state
-/// that has previously been added to the app through a call to [`crate::App::state`]
+/// `State` is an extractor helper struct that allows you to extract app state from the state type added in `App::new`.
 ///
-/// This implements `Deref` and `DerefMut` to the inner type.
+/// This implements `Deref` and `DerefMut` to the inner type, but the inner type is also public so you can also just take ownership if you prefer.
+///
+/// Any type that implements `From<&S>` where `S` is the app state given in `App::new` can be extracted via this type.
+/// These `From` implementations can be derived on a struct via `kanin::AppState`.
+///
+/// # Example
+/// ```
+/// # use kanin::{AppState, extract::State};
+/// #[derive(AppState)]
+/// struct AppState {
+///     num: u8,
+/// }
+/// async fn my_handler(State(num): State<u8>) {
+///     assert_eq!(42, num);
+/// }
+/// ```
 #[derive(Debug, Deref, DerefMut)]
 pub struct State<T>(pub T);
 
@@ -21,16 +36,14 @@ impl<T: Clone> Clone for State<T> {
 
 /// Extract implementation for app state.
 #[async_trait]
-impl<T: Clone + Send + Sync + 'static> Extract for State<T> {
-    type Error = HandlerError;
+impl<S, T> Extract<S> for State<T>
+where
+    S: Send + Sync,
+    T: for<'a> From<&'a S>,
+{
+    type Error = Infallible;
 
-    async fn extract(req: &mut Request) -> Result<Self, Self::Error> {
-        match req.state::<T>() {
-            None => {
-                error!("Attempted to retrieve state of type {}, but that type has not been added to the app state. Add it with `app.state(...)`", std::any::type_name::<T>());
-                Err(HandlerError::Internal(ServerError::StateNotFound))
-            }
-            Some(t) => Ok(State(t.clone())),
-        }
+    async fn extract(req: &mut Request<S>) -> Result<Self, Self::Error> {
+        Ok(Self(req.state::<T>()))
     }
 }

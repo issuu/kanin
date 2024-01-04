@@ -1,4 +1,4 @@
-//! Holds [QueueConfig]'s implementation.
+//! Handler configuration.
 
 use std::time::Duration;
 
@@ -40,18 +40,18 @@ impl HandlerConfig {
     /// The topic exchange. See <`https://www.rabbitmq.com/tutorials/tutorial-five-python.html`> for more information.
     pub const TOPIC_EXCHANGE: &'static str = "amq.topic";
 
-    /// Creates a new default QueueConfig.
+    /// Creates a new default [`HandlerConfig`].
     pub fn new() -> Self {
         Default::default()
     }
 
-    /// Sets the exchange of the handler. Defaults to the direct exchange, [`QueueConfig::DIRECT_EXCHANGE`].
+    /// Sets the exchange of the handler. Defaults to the direct exchange, [`HandlerConfig::DIRECT_EXCHANGE`].
     pub fn with_queue(mut self, queue: impl Into<String>) -> Self {
         self.queue = Some(queue.into());
         self
     }
 
-    /// Sets the exchange of the handler. Defaults to the direct exchange, [`QueueConfig::DIRECT_EXCHANGE`].
+    /// Sets the exchange of the handler. Defaults to the direct exchange, [`HandlerConfig::DIRECT_EXCHANGE`].
     pub fn with_exchange(mut self, exchange: impl Into<String>) -> Self {
         self.exchange = exchange.into();
         self

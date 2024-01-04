@@ -12,13 +12,14 @@ pub struct Msg<T>(pub T);
 
 /// Extract implementation for protobuf messages.
 #[async_trait]
-impl<D> Extract for Msg<D>
+impl<S, D> Extract<S> for Msg<D>
 where
+    S: Send + Sync,
     D: Default + ProstMessage,
 {
     type Error = HandlerError;
 
-    async fn extract(req: &mut Request) -> Result<Self, Self::Error> {
+    async fn extract(req: &mut Request<S>) -> Result<Self, Self::Error> {
         match &req.delivery {
             None => Err(HandlerError::DELIVERY_ALREADY_EXTRACTED),
             Some(d) => {

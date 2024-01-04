@@ -39,10 +39,13 @@ impl FromError<HandlerError> for MyResponse {
 }
 
 #[async_trait]
-impl Extract for MyResponse {
+impl<S> Extract<S> for MyResponse
+where
+    S: Send + Sync,
+{
     type Error = HandlerError;
 
-    async fn extract(req: &mut Request) -> Result<Self, Self::Error> {
+    async fn extract(req: &mut Request<S>) -> Result<Self, Self::Error> {
         match &req.delivery {
             None => Err(HandlerError::DELIVERY_ALREADY_EXTRACTED),
             Some(d) => Ok(MyResponse(String::from_utf8_lossy(&d.data).to_string())),
@@ -112,17 +115,34 @@ async fn shutdown(state: State<Arc<Mutex<Vec<String>>>>) {
     panic!("Shutdown");
 }
 
+#[derive(Clone)]
+struct SendState(Arc<Mutex<Vec<String>>>);
+
+#[derive(Clone)]
+struct RecvState(Arc<Mutex<Vec<String>>>);
+
+impl From<&SendState> for Arc<Mutex<Vec<String>>> {
+    fn from(state: &SendState) -> Self {
+        state.0.clone()
+    }
+}
+
+impl From<&RecvState> for Arc<Mutex<Vec<String>>> {
+    fn from(state: &RecvState) -> Self {
+        state.0.clone()
+    }
+}
+
 #[tokio::test]
 async fn it_receives_various_messages_and_works_as_expected() {
     init_logging();
     let conn = amqp_connect().await;
 
     // We use a shared state to recall the calls that happened.
-    let send_state = Arc::new(Mutex::new(Vec::<String>::new()));
-    let recv_state = Arc::new(Mutex::new(Vec::<String>::new()));
+    let send_state = SendState(Arc::new(Mutex::new(Vec::<String>::new())));
+    let recv_state = RecvState(Arc::new(Mutex::new(Vec::<String>::new())));
 
-    let send_app = App::new()
-        .state(send_state.clone())
+    let send_app = App::new(send_state.clone())
         .handler("handler", handler)
         .handler("handler_channel", handler_channel)
         .handler("handler_delivery", handler_delivery)
@@ -136,8 +156,7 @@ async fn it_receives_various_messages_and_works_as_expected() {
         .await
         .unwrap();
 
-    let recv_app = App::new()
-        .state(recv_state.clone())
+    let recv_app = App::new(recv_state.clone())
         .handler("handler_reply_to", handler)
         .handler("handler_message_reply_to", handler_message)
         .handler("recv_shutdown", shutdown)
@@ -229,11 +248,11 @@ async fn it_receives_various_messages_and_works_as_expected() {
     join_all(recv_tasks).await;
 
     // Unwrap the calls from the Arc.
-    let send_calls = Arc::try_unwrap(send_state)
+    let send_calls = Arc::try_unwrap(send_state.0)
         .expect("Only one reference left (this one)")
         .into_inner()
         .expect("No one has a lock to the Mutex");
-    let recv_calls = Arc::try_unwrap(recv_state)
+    let recv_calls = Arc::try_unwrap(recv_state.0)
         .expect("Only one reference left (this one)")
         .into_inner()
         .expect("No one has a lock to the Mutex");

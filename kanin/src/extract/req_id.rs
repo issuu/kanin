@@ -75,10 +75,13 @@ impl fmt::Display for ReqId {
 }
 
 #[async_trait]
-impl Extract for ReqId {
+impl<S> Extract<S> for ReqId
+where
+    S: Send + Sync,
+{
     type Error = Infallible;
 
-    async fn extract(req: &mut Request) -> Result<Self, Self::Error> {
+    async fn extract(req: &mut Request<S>) -> Result<Self, Self::Error> {
         Ok(req.req_id.clone())
     }
 }

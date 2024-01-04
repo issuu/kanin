@@ -1,6 +1,6 @@
 [package]
 name = "kanin_derive"
-version = "0.5.2"
+version = "0.6.0"
 edition = "2021"
 authors = ["Victor Nordam Suadicani <v.n.suadicani@gmail.com>"]
 description = "Derive macros for kanin"
@@ -15,7 +15,7 @@ proc-macro = true
 
 [dependencies]
 # Rust code parser.
-syn = { version = "1.0.91", features = ["full", "extra-traits"] }
+syn = { version = "2.0.46", features = ["full", "extra-traits"] }
 
 # Rust code generation.
 quote = "1.0.17"

@@ -12,10 +12,13 @@ use crate::{Extract, Request};
 pub struct AppId(pub Option<String>);
 
 #[async_trait]
-impl Extract for AppId {
+impl<S> Extract<S> for AppId
+where
+    S: Send + Sync,
+{
     type Error = Infallible;
 
-    async fn extract(req: &mut Request) -> Result<Self, Self::Error> {
+    async fn extract(req: &mut Request<S>) -> Result<Self, Self::Error> {
         let app_id = req.app_id().map(|app_id| app_id.to_string());
         Ok(Self(app_id))
     }

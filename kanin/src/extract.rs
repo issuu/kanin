@@ -22,21 +22,24 @@ pub use state::State;
 /// Note that extractions might mutate the request in certain ways.
 /// Most notably, if extracting the [`Delivery`] or [`Acker`] from a request, it is the responsibility of the handler to acknowledge the message.
 #[async_trait]
-pub trait Extract: Sized {
+pub trait Extract<S>: Sized {
     /// The error to return in case extraction fails.
     type Error: Error;
 
     /// Extract the type from the request.
-    async fn extract(req: &mut Request) -> Result<Self, Self::Error>;
+    async fn extract(req: &mut Request<S>) -> Result<Self, Self::Error>;
 }
 
 /// Note that when you extract the [`Delivery`], the handler itself must acknowledge the request.
 /// Kanin *will not* acknowledge the request for you in this case.
 #[async_trait]
-impl Extract for Delivery {
+impl<S> Extract<S> for Delivery
+where
+    S: Send + Sync,
+{
     type Error = HandlerError;
 
-    async fn extract(req: &mut Request) -> Result<Self, Self::Error> {
+    async fn extract(req: &mut Request<S>) -> Result<Self, Self::Error> {
         req.delivery
             .take()
             .ok_or(HandlerError::DELIVERY_ALREADY_EXTRACTED)
@@ -46,10 +49,13 @@ impl Extract for Delivery {
 /// Note that when you extract the [`Acker`], the handler itself must acknowledge the request.
 /// kanin *will not* acknowledge the request for you in this case.
 #[async_trait]
-impl Extract for Acker {
+impl<S> Extract<S> for Acker
+where
+    S: Send + Sync,
+{
     type Error = HandlerError;
 
-    async fn extract(req: &mut Request) -> Result<Self, Self::Error> {
+    async fn extract(req: &mut Request<S>) -> Result<Self, Self::Error> {
         req.delivery
             .as_mut()
             .ok_or(HandlerError::DELIVERY_ALREADY_EXTRACTED)
@@ -58,35 +64,40 @@ impl Extract for Acker {
 }
 
 #[async_trait]
-impl Extract for Channel {
+impl<S> Extract<S> for Channel
+where
+    S: Send + Sync,
+{
     type Error = Infallible;
 
-    async fn extract(req: &mut Request) -> Result<Self, Self::Error> {
+    async fn extract(req: &mut Request<S>) -> Result<Self, Self::Error> {
         Ok(req.channel().clone())
     }
 }
 
 /// Extracting options simply discards the error and returns None in that case.
 #[async_trait]
-impl<T> Extract for Option<T>
+impl<S, T> Extract<S> for Option<T>
 where
-    T: Extract,
+    T: Extract<S>,
+    S: Send + Sync,
 {
     type Error = Infallible;
 
-    async fn extract(req: &mut Request) -> Result<Self, Self::Error> {
+    async fn extract(req: &mut Request<S>) -> Result<Self, Self::Error> {
         Ok(Extract::extract(req).await.ok())
     }
 }
 
 #[async_trait]
-impl<T> Extract for Result<T, <T as Extract>::Error>
+impl<S, T> Extract<S> for Result<T, <T as Extract<S>>::Error>
 where
-    T: Extract,
+    T: Extract<S>,
+    S: Send + Sync,
 {
     type Error = Infallible;
 
-    async fn extract(req: &mut Request) -> Result<Self, Self::Error> {
+    async fn extract(req: &mut Request<S>) -> Result<Self, Self::Error> {
         Ok(Extract::extract(req).await)
     }
 }
