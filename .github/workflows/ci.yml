@@ -39,6 +39,12 @@ jobs:
     - name: Lint
       run: cargo clippy --workspace --all-targets -- --deny warnings
 
+    # Ensures that the docs can be built properly.
+    - name: Docs
+      run: cargo doc --no-deps
+      env:
+        RUSTDOCFLAGS: -D warnings
+
   # Runs cargo deny, an auditing tool and dependency checker, among other things. See https://github.com/EmbarkStudios/cargo-deny
   audit:
     name: Audit

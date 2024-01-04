@@ -13,6 +13,18 @@ use crate::{Extract, Request};
 ///
 /// Any type that implements `From<&S>` where `S` is the app state given in `App::new` can be extracted via this type.
 /// These `From` implementations can be derived on a struct via `kanin::AppState`.
+///
+/// # Example
+/// ```
+/// # use kanin::{AppState, extract::State};
+/// #[derive(AppState)]
+/// struct AppState {
+///     num: u8,
+/// }
+/// async fn my_handler(State(num): State<u8>) {
+///     assert_eq!(42, num);
+/// }
+/// ```
 #[derive(Debug, Deref, DerefMut)]
 pub struct State<T>(pub T);
 

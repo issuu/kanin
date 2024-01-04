@@ -75,7 +75,7 @@ impl<T> FromError<Infallible> for T {
     }
 }
 
-/// This impl ensures that if T can be constructed from an error, then Option<T> can also be constructed from an error.
+/// This impl ensures that if T can be constructed from an error, then `Option<T>` can also be constructed from an error.
 /// Simply by wrapping in Some, obviously.
 impl<T> FromError<HandlerError> for Option<T>
 where
