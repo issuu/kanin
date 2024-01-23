@@ -6,7 +6,7 @@ use futures::{stream::FuturesUnordered, Future, StreamExt};
 use lapin::{
     acker::Acker,
     options::{BasicAckOptions, BasicConsumeOptions, BasicPublishOptions, BasicQosOptions},
-    types::FieldTable,
+    types::{FieldTable, ShortString},
     BasicProperties, Channel, Connection, Consumer,
 };
 use tracing::{debug, error, info, info_span, trace, warn, Instrument};
@@ -144,6 +144,9 @@ async fn handle_request<H, S, Args, Res>(
                     bytes_response.len()
                 );
             }
+
+            // Since we expect the response to be encoded Protobuf, we set the content type to octet-stream.
+            props = props.with_content_type(ShortString::from("application/octet-stream"));
 
             let publish = channel
                 .basic_publish(
