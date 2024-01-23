@@ -145,7 +145,7 @@ async fn handle_request<H, S, Args, Res>(
                 );
             }
 
-            // Since we expect the response to be protobuf, we set the content type to octet-stream. This is important for thin-layer.
+            // Since we expect the response to be encoded Protobuf, we set the content type to octet-stream.
             props = props.with_content_type(ShortString::from("application/octet-stream"));
 
             let publish = channel
