@@ -1,6 +1,6 @@
 [package]
 name = "kanin"
-version = "0.28.0"
+version = "0.28.1"
 edition = "2021"
 authors = ["Victor Nordam Suadicani <v.n.suadicani@gmail.com>"]
 description = "An RPC microservice framework for AMQP, protobuf and Rust built on lapin (https://github.com/amqp-rs/lapin)."
