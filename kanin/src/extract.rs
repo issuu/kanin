@@ -20,7 +20,7 @@ use crate::Request;
 /// A trait for types that can be extracted from [requests](`Request`).
 ///
 /// Note that extractions might mutate the request in certain ways.
-/// Most notably, if extracting the [`Delivery`] or [`Acker`] from a request, it is the responsibility of the handler to acknowledge the message.
+/// Most notably, if extracting the [`Acker`] from a request, it is the responsibility of the handler to acknowledge the message.
 #[async_trait]
 pub trait Extract<S>: Sized {
     /// The error to return in case extraction fails.

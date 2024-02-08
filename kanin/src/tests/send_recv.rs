@@ -220,7 +220,6 @@ async fn it_receives_various_messages_and_works_as_expected() {
     };
 
     // Verify that we shut down the apps.
-    info!("join");
     let ((send_return, _, send_tasks), (recv_return, _, recv_tasks), ()) =
         tokio::join!(send_app, recv_app, requests);
     assert!(send_return.unwrap_err().is_panic());
@@ -255,7 +254,6 @@ async fn it_receives_various_messages_and_works_as_expected() {
             // We verify that they are called by seeing that they call the recv_app.
             // "handler",
             // "handler_channel",
-            // "handler_delivery",
             // "handler_req_id",
             // "handler_app_id",
             // "handler_two_extractors",
@@ -268,7 +266,6 @@ async fn it_receives_various_messages_and_works_as_expected() {
 
     assert_eq!(
         [
-            "handler_message",
             "handler_message",
             "handler_message",
             "handler_message",
