@@ -1,4 +1,6 @@
 //! AMQP responses.
+//!
+//! Any type that implements [`Respond`] can be used as the return type of a handler.
 
 use std::fmt;
 
@@ -10,7 +12,7 @@ use prost::Message;
 /// However, the type must also be able to be displayed for debugging purposes
 /// and be sent across threads during processing.
 pub trait Respond: fmt::Debug + Send {
-    /// Creates the bytes payload of this value.
+    /// Creates the bytes payload of the response.
     fn respond(self) -> Vec<u8>;
 }
 

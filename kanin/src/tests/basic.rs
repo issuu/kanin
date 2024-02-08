@@ -1,8 +1,12 @@
 use std::sync::{Arc, Mutex};
 
-use lapin::{message::Delivery, Channel};
+use lapin::Channel;
 
-use crate::{error::FromError, extract::State, App, AppState, HandlerError, Respond};
+use crate::{
+    error::FromError,
+    extract::{AppId, State},
+    App, AppState, HandlerError, Respond,
+};
 
 #[derive(Debug)]
 struct MyResponse(String);
@@ -17,7 +21,6 @@ impl FromError<HandlerError> for MyResponse {
     fn from_error(error: HandlerError) -> Self {
         match error {
             HandlerError::InvalidRequest(e) => MyResponse(format!("Invalid request: {:#?}", e)),
-            HandlerError::Internal(e) => MyResponse(format!("Internal server error: {:#?}", e)),
         }
     }
 }
@@ -30,11 +33,7 @@ async fn handler_with_channel(_channel: Channel) -> MyResponse {
     MyResponse("hello".into())
 }
 
-async fn handler_with_delivery(_delivery: Delivery) -> MyResponse {
-    MyResponse("hello".into())
-}
-
-async fn handler_with_two_extractors(_channel: Channel, _delivery: Delivery) -> MyResponse {
+async fn handler_with_two_extractors(_channel: Channel, _app_id: AppId) -> MyResponse {
     MyResponse("hello".into())
 }
 
@@ -68,7 +67,6 @@ async fn it_compiles() {
     let _ignore = App::new(MyAppState(Arc::new(Mutex::new(187))))
         .handler("routing_key_0", handler)
         .handler("routing_key_1", handler_with_channel)
-        .handler("routing_key_2", handler_with_delivery)
         .handler("routing_key_3", handler_with_two_extractors)
         .handler("routing_key_4", handler_with_state_extractor)
         .handler("routing_key_5", listener);

@@ -23,16 +23,6 @@ pub enum HandlerError {
     /// Errors due to invalid requests.
     #[error("Invalid Request: {0:#}")]
     InvalidRequest(RequestError),
-
-    /// Internal server errors that are not the fault of clients.
-    #[error("Internal Server Error: {0:#}")]
-    Internal(ServerError),
-}
-
-impl HandlerError {
-    /// Convenient const for this otherwise long error.
-    pub const DELIVERY_ALREADY_EXTRACTED: Self =
-        Self::Internal(ServerError::DeliveryAlreadyExtracted);
 }
 
 /// All the ways a request might be invalid.
@@ -43,14 +33,6 @@ pub enum RequestError {
     /// This error is left as an opaque error as that is what is provided by [`prost`].
     #[error("Message could not be decoded into the required type: {0:#}")]
     DecodeError(DecodeError),
-}
-
-/// Errors due to bad configuration or usage from the server-side.
-#[derive(Debug, ThisError)]
-pub enum ServerError {
-    /// A handler attempted to extract the delivery of a message twice.
-    #[error("The delivery was already extracted from the request and could not be accessed")]
-    DeliveryAlreadyExtracted,
 }
 
 /// Types that may be constructed from errors.
@@ -100,7 +82,6 @@ impl FromError<HandlerError> for () {
             HandlerError::InvalidRequest(e) => {
                 warn!("Listener handler received an invalid request: {e:#}")
             }
-            HandlerError::Internal(e) => error!("Internal error on listener handler: {e:#}"),
         }
     }
 }

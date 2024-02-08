@@ -29,7 +29,7 @@ mod generated {
 
     /// An internal error. This is used for any error that can't be handled in any other way.
     /// Consider it a last resort when no other more specific error can be returned.
-    #[derive(FromError, Clone, PartialEq, ::prost::Message)]
+    #[derive(Clone, PartialEq, ::prost::Message)]
     pub struct InternalError {
         /// The source is an a1pp ID that specifies the service in which the error originated.
         #[prost(string, tag = "1")]

@@ -68,7 +68,7 @@ where
                     error!("Error when receiving delivery on routing key \"{routing_key}\": {e:#}");
                     continue;
                 }
-                // Construct the request by bundling the channel and the delivery.
+                // Construct the request by bundling the channel, the delivery and the app state.
                 Ok(delivery) => Request::new(channel.clone(), delivery, state.clone()),
             };
 
@@ -78,7 +78,7 @@ where
             // Requests are handled and replied to concurrently.
             // This allows each handler task to process multiple requests at once.
             tasks.push(tokio::spawn(async move {
-                let span = info_span!("request", req_id = %req.req_id);
+                let span = info_span!("request", req_id = %req.req_id());
 
                 handle_request(req, handler, channel, should_reply)
                     .instrument(span)
@@ -100,18 +100,22 @@ async fn handle_request<H, S, Args, Res>(
     H: Handler<Args, Res, S>,
     Res: Respond,
 {
-    let properties = req.properties().cloned();
-    let reply_to = properties.as_ref().and_then(|p| p.reply_to().clone());
-    let correlation_id = properties.as_ref().and_then(|p| p.correlation_id().clone());
-    let app_id = req.app_id().unwrap_or("<unknown>");
-
     let handler_name = std::any::type_name::<H>();
+    let app_id = req.app_id().unwrap_or("<unknown>");
     info!("Received request on handler {handler_name:?} from {app_id}");
+
+    if req.delivery.redelivered {
+        info!("Request was redelivered.");
+    }
 
     let t = std::time::Instant::now();
 
     // Call the handler with the request.
     let response = handler.call(&mut req).await;
+
+    let properties = req.properties();
+    let reply_to = properties.reply_to();
+    let correlation_id = properties.correlation_id();
 
     debug!("Handler {handler_name:?} produced response {response:?}");
 
@@ -126,13 +130,9 @@ async fn handle_request<H, S, Args, Res>(
             let mut props = BasicProperties::default();
 
             if let Some(correlation_id) = correlation_id {
-                props = props.with_correlation_id(correlation_id);
+                props = props.with_correlation_id(correlation_id.clone());
             } else {
-                let req_props = properties
-                    .map(|p| format!("{p:?}"))
-                    .unwrap_or_else(|| "<None>".into());
-
-                warn!("Request from handler {handler_name:?} did not contain a `correlation_id` property. A reply will be published, but the receiver may not recognize it as the reply for their request. (all properties: {req_props})");
+                warn!("Request from handler {handler_name:?} did not contain a `correlation_id` property. A reply will be published, but the receiver may not recognize it as the reply for their request. (all properties: {properties:?})");
             }
 
             // Warn in case of replying with an empty message, since this is _probably_ wrong or unintended.
@@ -173,11 +173,7 @@ async fn handle_request<H, S, Args, Res>(
         // Even worse, the response we produced is non-empty - it was probably meant to be received by someone!
         // In this case, we warn. Empty responses may be produced by non-responding handlers, which is fine.
         (true, None) if !bytes_response.is_empty() => {
-            let req_props = properties
-                .map(|p| format!("{p:?}"))
-                .unwrap_or_else(|| "<None>".into());
-
-            warn!("Received non-empty message from handler {handler_name:?} but the request did not contain a `reply_to` property, so no reply could be published (all properties: {req_props}, elapsed={elapsed:?}).");
+            warn!("Received non-empty message from handler {handler_name:?} but the request did not contain a `reply_to` property, so no reply could be published (all properties: {properties:?}, elapsed={elapsed:?}).");
         }
         // We are supposed to reply, but the request did not have a reply_to.
         // However we produced an empty response, so it's not like the caller missed any information.
@@ -195,17 +191,13 @@ async fn handle_request<H, S, Args, Res>(
         }
     };
 
-    match req.delivery.map(|d| d.acker) {
-        // Check if it's the default - this signifies that it was already extracted.
-        // In that case, it is the responsibility of the handler to acknowledge, so we won't do it.
-        Some(acker) if acker != Acker::default() => {
-            match acker.ack(BasicAckOptions::default()).await {
-                Ok(()) => debug!("Successfully acked request."),
-                Err(e) => error!("Failed to ack request: {e:#}"),
-            }
+    // Check if it's the default - this signifies that it was already extracted.
+    // In that case, it is the responsibility of the handler to acknowledge, so we won't do it.
+    if req.delivery.acker != Acker::default() {
+        match req.delivery.acker.ack(BasicAckOptions::default()).await {
+            Ok(()) => debug!("Successfully acked request."),
+            Err(e) => error!("Failed to ack request: {e:#}"),
         }
-        // If the delivery or acker was extracted, it is up to the request handler itself to acknowledge the request.
-        _ => (),
     }
 }
 

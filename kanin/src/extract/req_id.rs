@@ -82,6 +82,6 @@ where
     type Error = Infallible;
 
     async fn extract(req: &mut Request<S>) -> Result<Self, Self::Error> {
-        Ok(req.req_id.clone())
+        Ok(req.req_id().clone())
     }
 }

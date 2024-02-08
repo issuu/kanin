@@ -3,7 +3,7 @@
 use std::time::Duration;
 
 use lapin::options::QueueDeclareOptions;
-use lapin::types::{AMQPValue, FieldTable, ShortString};
+use lapin::types::{AMQPValue, FieldTable, LongString, ShortString};
 
 /// Detailed configuration of a handler.
 #[derive(Clone, Debug)]
@@ -45,7 +45,7 @@ impl HandlerConfig {
         Default::default()
     }
 
-    /// Sets the exchange of the handler. Defaults to the direct exchange, [`HandlerConfig::DIRECT_EXCHANGE`].
+    /// Sets the queue name. Defaults to the same as the routing key.
     pub fn with_queue(mut self, queue: impl Into<String>) -> Self {
         self.queue = Some(queue.into());
         self
@@ -106,7 +106,10 @@ impl HandlerConfig {
     }
 
     /// Sets the `x-dead-letter-exchange` argument on the queue. See also [RabbitMQ's documentation](https://www.rabbitmq.com/dlx.html).
-    pub fn with_dead_letter_exchange(mut self, dead_letter_exchange: String) -> Self {
+    pub fn with_dead_letter_exchange(
+        mut self,
+        dead_letter_exchange: impl Into<LongString>,
+    ) -> Self {
         self.arguments.insert(
             "x-dead-letter-exchange".into(),
             AMQPValue::LongString(dead_letter_exchange.into()),
@@ -115,10 +118,22 @@ impl HandlerConfig {
     }
 
     /// Sets the `x-dead-letter-routing-key` argument on the queue. See also [RabbitMQ's documentation](https://www.rabbitmq.com/dlx.html).
-    pub fn with_dead_letter_routing_key(mut self, dead_letter_routing_key: String) -> Self {
+    pub fn with_dead_letter_routing_key(
+        mut self,
+        dead_letter_routing_key: impl Into<LongString>,
+    ) -> Self {
         self.arguments.insert(
             "x-dead-letter-routing-key".into(),
             AMQPValue::LongString(dead_letter_routing_key.into()),
+        );
+        self
+    }
+
+    /// Sets the `x-consumer-timeout` argument on the queue. See also [RabbitMQ's documentation](https://www.rabbitmq.com/consumers.html).
+    pub fn with_consumer_timeout(mut self, consumer_timeout: impl Into<LongString>) -> Self {
+        self.arguments.insert(
+            "x-consumer-timeout".into(),
+            AMQPValue::LongString(consumer_timeout.into()),
         );
         self
     }
