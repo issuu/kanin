@@ -17,9 +17,9 @@ pub struct Request<S> {
     channel: Channel,
     /// Request ID. This is a unique ID for every request. Either a newly created UUID or whatever
     /// is found in the `req_id` header of the incoming AMQP message.
-    pub(crate) req_id: ReqId,
+    req_id: ReqId,
     /// The message delivery.
-    pub(crate) delivery: Option<Delivery>,
+    pub(crate) delivery: Delivery,
 }
 
 impl<S> Request<S> {
@@ -29,8 +29,18 @@ impl<S> Request<S> {
             state,
             channel,
             req_id: ReqId::from_delivery(&delivery),
-            delivery: Some(delivery),
+            delivery,
         }
+    }
+
+    /// Returns a reference to the request ID of this request.
+    pub fn req_id(&self) -> &ReqId {
+        &self.req_id
+    }
+
+    /// Returns a reference to the delivery of this request.
+    pub fn delivery(&self) -> &Delivery {
+        &self.delivery
     }
 
     /// Returns the app state for the given type.
@@ -47,14 +57,15 @@ impl<S> Request<S> {
     }
 
     /// Returns the AMQP properties of the request, unless the request was already extracted.
-    pub fn properties(&self) -> Option<&AMQPProperties> {
-        self.delivery.as_ref().map(|d| &d.properties)
+    pub fn properties(&self) -> &AMQPProperties {
+        &self.delivery.properties
     }
 
     /// Returns the `app_id` AMQP property of the request.
     pub fn app_id(&self) -> Option<&str> {
         self.properties()
-            .and_then(|p| p.app_id().as_ref())
+            .app_id()
+            .as_ref()
             .map(|app_id| app_id.as_str())
     }
 }

@@ -20,12 +20,6 @@ where
     type Error = HandlerError;
 
     async fn extract(req: &mut Request<S>) -> Result<Self, Self::Error> {
-        match &req.delivery {
-            None => Err(HandlerError::DELIVERY_ALREADY_EXTRACTED),
-            Some(d) => {
-                let data: &[u8] = &d.data;
-                Ok(Msg(D::decode(data)?))
-            }
-        }
+        Ok(Msg(D::decode(&req.delivery.data[..])?))
     }
 }

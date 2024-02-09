@@ -4,7 +4,7 @@ mod task;
 
 use std::sync::Arc;
 
-use futures::future::{select_all, SelectAll};
+use futures::future::{select_all, try_join_all, SelectAll};
 use lapin::{self, Connection, ConnectionProperties};
 use tokio::task::JoinHandle;
 use tracing::{debug, error, info, trace};
@@ -149,9 +149,8 @@ impl<S> App<S> {
             panic!("panicking due to connection error");
         });
 
-        let mut join_handles = Vec::new();
         let state = Arc::new(self.state);
-        for task_factory in self.handlers.into_iter() {
+        let mut join_handles = try_join_all(self.handlers.into_iter().map(|task_factory| async {
             debug!(
                 "Spawning handler task for routing key: {:?} ...",
                 task_factory.routing_key()
@@ -164,8 +163,10 @@ impl<S> App<S> {
                 .map_err(Error::Lapin)?;
 
             // Spawn the task and save the join handle.
-            join_handles.push(tokio::spawn(task));
-        }
+            Ok(tokio::spawn(task))
+        }))
+        .await?;
+
         info!(
             "Connected to AMQP broker. Listening on {} handler{}.",
             join_handles.len(),

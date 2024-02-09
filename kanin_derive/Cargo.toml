@@ -1,6 +1,6 @@
 [package]
 name = "kanin_derive"
-version = "0.6.0"
+version = "0.7.0"
 edition = "2021"
 authors = ["Victor Nordam Suadicani <v.n.suadicani@gmail.com>"]
 description = "Derive macros for kanin"

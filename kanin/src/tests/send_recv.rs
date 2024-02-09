@@ -1,9 +1,11 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    convert::Infallible,
+    sync::{Arc, Mutex},
+};
 
 use async_trait::async_trait;
 use futures::future::join_all;
 use lapin::{
-    message::Delivery,
     options::BasicPublishOptions,
     types::{AMQPValue, FieldTable},
     BasicProperties, Channel,
@@ -33,7 +35,6 @@ impl FromError<HandlerError> for MyResponse {
     fn from_error(error: HandlerError) -> Self {
         match error {
             HandlerError::InvalidRequest(e) => MyResponse(format!("Invalid request: {e:#?}")),
-            HandlerError::Internal(e) => MyResponse(format!("Internal server error: {e:#?}")),
         }
     }
 }
@@ -43,13 +44,12 @@ impl<S> Extract<S> for MyResponse
 where
     S: Send + Sync,
 {
-    type Error = HandlerError;
+    type Error = Infallible;
 
     async fn extract(req: &mut Request<S>) -> Result<Self, Self::Error> {
-        match &req.delivery {
-            None => Err(HandlerError::DELIVERY_ALREADY_EXTRACTED),
-            Some(d) => Ok(MyResponse(String::from_utf8_lossy(&d.data).to_string())),
-        }
+        Ok(MyResponse(
+            String::from_utf8_lossy(&req.delivery().data).to_string(),
+        ))
     }
 }
 
@@ -72,11 +72,6 @@ async fn handler_channel(_channel: Channel) -> MyResponse {
     MyResponse("handler_channel".into())
 }
 
-async fn handler_delivery(_delivery: Delivery) -> MyResponse {
-    SYNC.get().unwrap().send(()).await.unwrap();
-    MyResponse("handler_delivery".into())
-}
-
 async fn handler_req_id(req_id: ReqId) -> MyResponse {
     assert_eq!(req_id.to_string(), "abc");
     SYNC.get().unwrap().send(()).await.unwrap();
@@ -89,7 +84,7 @@ async fn handler_app_id(AppId(app_id): AppId) -> MyResponse {
     MyResponse("handler_app_id".into())
 }
 
-async fn handler_two_extractors(_channel: Channel, _delivery: Delivery) -> MyResponse {
+async fn handler_two_extractors(_channel: Channel, _app_id: AppId) -> MyResponse {
     SYNC.get().unwrap().send(()).await.unwrap();
     MyResponse("handler_two_extractors".into())
 }
@@ -145,7 +140,6 @@ async fn it_receives_various_messages_and_works_as_expected() {
     let send_app = App::new(send_state.clone())
         .handler("handler", handler)
         .handler("handler_channel", handler_channel)
-        .handler("handler_delivery", handler_delivery)
         .handler("handler_req_id", handler_req_id)
         .handler("handler_app_id", handler_app_id)
         .handler("handler_two_extractors", handler_two_extractors)
@@ -204,9 +198,6 @@ async fn it_receives_various_messages_and_works_as_expected() {
         send_msg("handler_channel", "handler_message_reply_to").await;
         recv.recv().await.unwrap();
         recv.recv().await.unwrap();
-        send_msg("handler_delivery", "handler_message_reply_to").await;
-        recv.recv().await.unwrap();
-        recv.recv().await.unwrap();
         send_msg("handler_req_id", "handler_message_reply_to").await;
         recv.recv().await.unwrap();
         recv.recv().await.unwrap();
@@ -229,7 +220,6 @@ async fn it_receives_various_messages_and_works_as_expected() {
     };
 
     // Verify that we shut down the apps.
-    info!("join");
     let ((send_return, _, send_tasks), (recv_return, _, recv_tasks), ()) =
         tokio::join!(send_app, recv_app, requests);
     assert!(send_return.unwrap_err().is_panic());
@@ -264,7 +254,6 @@ async fn it_receives_various_messages_and_works_as_expected() {
             // We verify that they are called by seeing that they call the recv_app.
             // "handler",
             // "handler_channel",
-            // "handler_delivery",
             // "handler_req_id",
             // "handler_app_id",
             // "handler_two_extractors",
@@ -277,7 +266,6 @@ async fn it_receives_various_messages_and_works_as_expected() {
 
     assert_eq!(
         [
-            "handler_message",
             "handler_message",
             "handler_message",
             "handler_message",

@@ -13,7 +13,6 @@
 //! #         #[prost(string, tag="1")]
 //! #         pub error: ::prost::alloc::string::String,
 //! #     }
-//! #     #[derive(kanin::FromError)]
 //! #     #[derive(Clone, PartialEq, ::prost::Message)]
 //! #     pub struct InternalError {
 //! #         #[prost(string, tag="1")]
