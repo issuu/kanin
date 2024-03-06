@@ -1,6 +1,6 @@
 [package]
 name = "kanin"
-version = "0.29.0"
+version = "0.30.0"
 edition = "2021"
 authors = ["Victor Nordam Suadicani <v.n.suadicani@gmail.com>"]
 description = "An RPC microservice framework for AMQP, protobuf and Rust built on lapin (https://github.com/amqp-rs/lapin)."
@@ -43,9 +43,12 @@ derive_more = "0.99.17"
 # Great for structured errors.
 thiserror = "1.0.30"
 
+# For exposing metrics about the internal state of kanin.
+metrics = "0.22.1"
+
 [dev-dependencies]
 # Concrete logging implementation.
-env_logger = "0.10.0"
+env_logger = "0.11.3"
 
 # Asynchronous runtime.
 tokio = { version = "1.18.0", features = [
