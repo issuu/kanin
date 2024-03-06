@@ -9,6 +9,7 @@ use lapin::{
     types::{FieldTable, ShortString},
     BasicProperties, Channel, Connection, Consumer,
 };
+use metrics::gauge;
 use tracing::{debug, error, info, info_span, trace, warn, Instrument};
 
 use crate::{Handler, HandlerConfig, Request, Respond};
@@ -275,6 +276,15 @@ impl<S> TaskFactory<S> {
 
         // If no queue was specified, we just use the routing key.
         let queue_name = self.config.queue.as_deref().unwrap_or(&self.routing_key);
+
+        // Set prefetch capacity gauge according to the prefetch.
+        // This allows one to construct a metric that informs how close a queue is to capacity.
+        // I.e. if there are 3 servers with prefetch 8 on a queue, the queue's capacity is 24.
+        // By comparing this number to the number of unacked messages in the AMQP message broker (like the rabbitmq_queue_messages_unacked metric from RabbitMQ),
+        // you can estimate how close to capacity the queue is.
+        let prefetch_f64: f64 = self.config.prefetch.into();
+        gauge!("kanin.prefetch_capacity", "queue" => queue_name.to_string())
+            .increment(prefetch_f64);
 
         // Declare and bind the queue. AMQP states that we must do this before creating the consumer.
         trace!("Declaring queue {queue_name:?} prior to binding...");

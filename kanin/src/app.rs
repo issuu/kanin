@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use futures::future::{select_all, try_join_all, SelectAll};
 use lapin::{self, Connection, ConnectionProperties};
+use metrics::describe_gauge;
 use tokio::task::JoinHandle;
 use tracing::{debug, error, info, trace};
 
@@ -113,6 +114,9 @@ impl<S> App<S> {
     /// On connection errors, the app will simply panic.
     #[inline]
     pub async fn run_with_connection(self, conn: &Connection) -> Result<()> {
+        // Describe metrics (just need to do it somewhere once as we run the app).
+        describe_gauge!("kanin.prefetch_capacity", "A gauge that measures how much prefetch is available on a certain queue, based on the prefetch of its consumers.");
+
         let handles = self.setup_handlers(conn).await?;
         let (returning_handler, _remaining_handlers_count, _leftover_handlers) = handles.await;
 
