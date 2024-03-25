@@ -183,8 +183,10 @@ impl<S> App<S> {
         // Describe metrics (just need to do it somewhere once as we run the app).
         describe_gauge!("kanin.prefetch_capacity", "A gauge that measures how much prefetch is available on a certain queue, based on the prefetch of its consumers.");
 
+        let shutdown_channel = self.shutdown_channel();
         let mut handles = self.setup_handlers(conn).await?;
 
+        let mut ret = Ok(());
         while let Some(returning_handler) = handles.next().await {
             match returning_handler {
                 Ok(Ok(())) => {
@@ -194,7 +196,10 @@ impl<S> App<S> {
                 }
                 Ok(Err(e)) => {
                     // Consumer cancellation from AMQP broker.
-                    return Err(e);
+                    if let Err(e) = shutdown_channel.send(()) {
+                        error!("Failed to send shutdown signal to other tasks on consumer cancellation: {e}");
+                    }
+                    ret = Err(e);
                 }
                 Err(e) => {
                     // Panic from kanin's own internal task handling.
@@ -207,7 +212,7 @@ impl<S> App<S> {
 
         info!("Gracefully shutdown. Goodbye.");
 
-        Ok(())
+        ret
     }
 
     /// Set up all the handlers, returning a collection of all the join handles.
