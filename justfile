@@ -6,5 +6,5 @@ dev:
 
 test:
 	docker compose up --renew-anon-volumes --detach
-	cargo test || (docker compose down && false)
+	cargo test -- --nocapture || (docker compose down && false)
 	docker compose down

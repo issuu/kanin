@@ -4,15 +4,16 @@ mod task;
 
 use std::sync::Arc;
 
-use futures::future::{select_all, try_join_all, SelectAll};
+use futures::{future::try_join_all, stream::FuturesUnordered, StreamExt};
 use lapin::{self, Connection, ConnectionProperties};
 use metrics::describe_gauge;
-use tokio::task::JoinHandle;
-use tracing::{debug, error, info, trace};
+#[cfg(unix)]
+use tokio::signal::unix::{signal, SignalKind};
+use tokio::{sync::broadcast, task::JoinHandle};
+use tracing::{debug, error, info, trace, warn};
 
 use self::task::TaskFactory;
 use crate::{Error, Handler, HandlerConfig, Respond, Result};
-use tokio::sync::mpsc;
 
 /// The central struct of your application.
 #[must_use = "The app will not do anything unless you call `.run`."]
@@ -24,6 +25,10 @@ pub struct App<S> {
     /// and then extract in their handlers. Types that wish to be extracted via `State<T>` must
     /// implement `From<&S>`.
     state: S,
+    /// Shutdown channel. Used to indicate that we should start graceful shutdown.
+    /// The channel has capacity 1 as we only need to signal once to shutdown.
+    /// Missing messages on the channel doesn't matter.
+    shutdown: broadcast::Sender<()>,
 }
 
 impl<S: Default> Default for App<S> {
@@ -31,6 +36,7 @@ impl<S: Default> Default for App<S> {
         Self {
             handlers: Vec::default(),
             state: S::default(),
+            shutdown: broadcast::Sender::new(1),
         }
     }
 }
@@ -41,7 +47,67 @@ impl<S> App<S> {
         Self {
             handlers: Vec::new(),
             state,
+            shutdown: broadcast::Sender::new(1),
         }
+    }
+
+    /// Returns a [`broadcast::Sender<()>`]. If you send a message on this channel, the app will gracefully shut down.
+    pub fn shutdown_channel(&self) -> broadcast::Sender<()> {
+        self.shutdown.clone()
+    }
+
+    /// Sets up signal handling to gracefully shut down the app when
+    /// this process receives termination signals from the operating system.
+    ///
+    /// This is a convenience function. If you want custom shutdown behavior, you can
+    /// use the broadcast channel returned from the [`Self::shutdown_channel`] method.
+    ///
+    /// This function sets up listeners for shutdown events. For non-Unix platforms, it uses [`tokio::signal::ctrl_c`].
+    /// For Unix platforms, it sets up listeners for SIGTERM, SIGINT and SIGHUP.
+    ///
+    /// # Panics
+    /// The background listening task spawned by this function will panic on Unix if it fails to setup any of the signal listeners.
+    /// In this case, signals will not be listened to and graceful shutdown will not start if signals are sent to the process.
+    pub fn graceful_shutdown_on_signal(self) -> Self {
+        let shutdown = self.shutdown_channel();
+        tokio::spawn(async move {
+            #[cfg(not(unix))]
+            {
+                // This should cover ctrl-c in most platforms.
+                let signal = tokio::signal::ctrl_c().await;
+
+                if let Err(e) = signal {
+                    error!("Failed to listen for ctrl-c: {e}")
+                }
+
+                info!("Received ctrl-c. Attempting to gracefully shut down...");
+            }
+
+            // We'll be more specific for Unix signal handling.
+            #[cfg(unix)]
+            {
+                // SIGTERM is commonly sent for graceful shutdown of applications, followed by 30 seconds of grace time, then a SIGKILL.
+                let mut sigterm =
+                    signal(SignalKind::terminate()).expect("failed to listen for SIGTERM");
+                // SIGINT is usually sent due to ctrl-c in the terminal.
+                let mut sigint =
+                    signal(SignalKind::interrupt()).expect("failed to listen for SIGINT");
+                // SIGHUP is usually sent when the terminal closes or the user logs out (for instance logs out of an SSH session).
+                let mut sighup = signal(SignalKind::hangup()).expect("failed to listen for SIGHUP");
+
+                tokio::select! {
+                    _ = sigterm.recv() => info!("Received SIGTERM. Attempting to gracefully shut down..."),
+                    _ = sigint.recv() => info!("Received SIGINT. Attempting to gracefully shut down..."),
+                    _ = sighup.recv() => info!("Received SIGHUP. Attempting to gracefully shut down..."),
+                };
+            }
+
+            if let Err(e) = shutdown.send(()) {
+                error!("Failed to send shutdown message: {e}")
+            }
+        });
+
+        self
     }
 
     /// Registers a new handler for the given routing key with the default prefetch count.
@@ -117,44 +183,61 @@ impl<S> App<S> {
         // Describe metrics (just need to do it somewhere once as we run the app).
         describe_gauge!("kanin.prefetch_capacity", "A gauge that measures how much prefetch is available on a certain queue, based on the prefetch of its consumers.");
 
-        let handles = self.setup_handlers(conn).await?;
-        let (returning_handler, _remaining_handlers_count, _leftover_handlers) = handles.await;
+        let shutdown_channel = self.shutdown_channel();
+        let mut handles = self.setup_handlers(conn).await?;
 
-        match returning_handler {
-            Ok(routing_key) => {
-                // This case can only happen if the handler task runs to completion.
-                // I.e. it completes the loop of consuming messages. This should only happen if the consumer is cancelled somehow.
-                panic!("A handler task for routing key {routing_key:?} returned unexpectedly! Was the consumer cancelled?");
-            }
-            Err(e) => {
-                // The JoinError is either a task cancellation or a panic.
-                // We don't cancel tasks so this must be a handler panic.
-                panic!("A handler panicked: {e:#}");
+        let mut ret = Ok(());
+        while let Some(returning_handler) = handles.next().await {
+            match returning_handler {
+                Ok(Ok(())) => {
+                    // Graceful handler shutdown, do nothing.
+                    // If all goes well, all handlers will go into this branch
+                    // and eventually we'll be done.
+                }
+                Ok(Err(e)) => {
+                    // Consumer cancellation from AMQP broker.
+                    if let Err(e) = shutdown_channel.send(()) {
+                        error!("Failed to send shutdown signal to other tasks on consumer cancellation: {e}");
+                    }
+                    ret = Err(e);
+                }
+                Err(e) => {
+                    // Panic from kanin's own internal task handling.
+                    // This is not a panic in the downstream user-created handlers,
+                    // those don't cause an exit from the app.
+                    panic!("A kanin task panicked: {e:#}");
+                }
             }
         }
+
+        match &ret {
+            Ok(()) => info!("Gracefully shutdown. Goodbye."),
+            Err(e) => error!("Unexpected shutdown: {e}"),
+        }
+
+        ret
     }
 
-    /// Set up all the handlers, returning a [`SelectAll`] future that collects all the join handles.
+    /// Set up all the handlers, returning a collection of all the join handles.
     pub(crate) async fn setup_handlers(
         self,
         conn: &Connection,
-    ) -> Result<SelectAll<JoinHandle<String>>> {
+    ) -> Result<FuturesUnordered<JoinHandle<Result<()>>>> {
         if self.handlers.is_empty() {
             return Err(Error::NoHandlers);
         }
 
-        // If the connection fails, we want to panic the entire application.
-        // We could consider possibly trying a restart somehow, but that seems complicated. Simpler to just restart.
-        let (send, mut recv) = mpsc::channel(1);
+        let conn_err_shutdown = self.shutdown.clone();
+        // If the connection fails, we try to signal for a graceful shutdown.
         conn.on_error(move |e| {
             error!("Connection returned error: {e:#}");
-            send.blocking_send(())
-                .expect("failed to send connection error message");
-            panic!("panicking due to connection error");
+            if let Err(e) = conn_err_shutdown.send(()) {
+                warn!("Could not send shutdown signal; are all handlers shut down already? Error: {e:#}");
+            }
         });
 
         let state = Arc::new(self.state);
-        let mut join_handles = try_join_all(self.handlers.into_iter().map(|task_factory| async {
+        let join_handles = try_join_all(self.handlers.into_iter().map(|task_factory| async {
             debug!(
                 "Spawning handler task for routing key: {:?} ...",
                 task_factory.routing_key()
@@ -162,7 +245,7 @@ impl<S> App<S> {
 
             // Construct the task from the factory. This produces a pinned future which we can then spawn.
             let task = task_factory
-                .build(conn, state.clone())
+                .build(conn, state.clone(), self.shutdown.subscribe())
                 .await
                 .map_err(Error::Lapin)?;
 
@@ -177,15 +260,6 @@ impl<S> App<S> {
             if join_handles.len() == 1 { "" } else { "s" }
         );
 
-        // We add one additional task which merely listens for a message from the `on_error` closure on the connection.
-        // This should ensure that we notify the user of the error via a panic if the connection runs into an error.
-        join_handles.push(tokio::spawn(async move {
-            recv.recv()
-                .await
-                .expect("failed to receive connection error message");
-            panic!("received message indicating a connection error has occurred");
-        }));
-
-        Ok(select_all(join_handles))
+        Ok(join_handles.into_iter().collect())
     }
 }

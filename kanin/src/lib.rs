@@ -161,7 +161,7 @@ mod tests {
     /// Initializes test logging.
     fn init_logging() {
         std::env::set_var("RUST_LOG", "debug");
-        let _ = env_logger::builder().is_test(true).try_init();
+        let _ = tracing_subscriber::fmt().try_init();
     }
 
     /// Returns a connection to AMQP. This will retry until a succesful connection is established.

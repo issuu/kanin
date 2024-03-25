@@ -20,6 +20,6 @@ where
     type Error = HandlerError;
 
     async fn extract(req: &mut Request<S>) -> Result<Self, Self::Error> {
-        Ok(Msg(D::decode(&req.delivery.data[..])?))
+        Ok(Msg(D::decode(&req.delivery().data[..])?))
     }
 }
