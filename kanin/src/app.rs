@@ -62,7 +62,7 @@ impl<S> App<S> {
     /// This is a convenience function. If you want custom shutdown behavior, you can
     /// use the broadcast channel returned from the [`Self::shutdown_channel`] method.
     ///
-    /// This functions sets up listeners for shutdown events. For non-Unix platforms, it uses [`tokio::signal::ctrl_c`].
+    /// This function sets up listeners for shutdown events. For non-Unix platforms, it uses [`tokio::signal::ctrl_c`].
     /// For Unix platforms, it sets up listeners for SIGTERM, SIGINT and SIGHUP.
     ///
     /// # Panics
@@ -210,7 +210,10 @@ impl<S> App<S> {
             }
         }
 
-        info!("Gracefully shutdown. Goodbye.");
+        match &ret {
+            Ok(()) => info!("Gracefully shutdown. Goodbye."),
+            Err(e) => error!("Unexpected shutdown: {e}"),
+        }
 
         ret
     }
