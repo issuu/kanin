@@ -12,6 +12,9 @@ pub enum Error {
     /// The app was started with no handlers registered.
     #[error("No handlers were registered on the app.")]
     NoHandlers,
+    /// The app exited due to a consumer from the AMQP broker cancelling.
+    #[error("Consumer cancelled on routing key {0}")]
+    ConsumerCancelled(String),
     /// An error from an underlying lapin call.
     #[error("An underlying `lapin` call failed: {0}")]
     Lapin(lapin::Error),

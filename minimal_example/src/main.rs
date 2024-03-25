@@ -13,6 +13,7 @@ async fn echo(Msg(request): Msg<EchoRequest>) -> EchoResponse {
 async fn main() -> kanin::Result<()> {
     App::new(())
         .handler("my_routing_key", echo)
+        .graceful_shutdown_on_signal()
         .run("amqp_addr")
         .await
 }

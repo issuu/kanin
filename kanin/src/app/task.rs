@@ -1,35 +1,47 @@
 //! Types and utilities for the App's tokio tasks.
 
-use std::{pin::Pin, sync::Arc};
+use std::{any::type_name, pin::Pin, sync::Arc, time::Instant};
 
 use futures::{stream::FuturesUnordered, Future, StreamExt};
 use lapin::{
-    acker::Acker,
-    options::{BasicAckOptions, BasicConsumeOptions, BasicPublishOptions, BasicQosOptions},
+    options::{
+        BasicAckOptions, BasicCancelOptions, BasicConsumeOptions, BasicPublishOptions,
+        BasicQosOptions,
+    },
     types::{FieldTable, ShortString},
     BasicProperties, Channel, Connection, Consumer,
 };
 use metrics::gauge;
+use tokio::sync::broadcast;
 use tracing::{debug, error, info, info_span, trace, warn, Instrument};
 
-use crate::{Handler, HandlerConfig, Request, Respond};
+use crate::{Error, Handler, HandlerConfig, Request, Respond, Result};
 
 /// Handler tasks are the async functions that are run in the tokio tasks to perform handlers.
 ///
 /// They use a given consumer and channel handle in order to receive AMQP deliveries.
 /// The deliveries are then used to extract the required information according to the extractors of the handler.
 ///
-/// Handler tasks should never return (they should keep processing messages),
-/// but should they ever complete (perhaps RabbitMQ cancelled the consumer), then it returns the handler's routing key.
-pub(super) type HandlerTask = Pin<Box<dyn Future<Output = String> + Send>>;
+/// Handler tasks should never return unless the app is instructed to shut down.
+type HandlerTask = Pin<Box<dyn Future<Output = Result<()>> + Send>>;
+
+/// Handler task factories are functions that produce handler tasks by providing all the necessary components the handler tasks need.
+///
+/// Upon creating an app and registering handlers, factories are inserted into the app. It is only upon running the app that the
+/// factories are turned into actual handler tasks and run in the asynchronous runtime.
+type HandlerTaskFactory<S> =
+    Box<dyn FnOnce(Channel, Consumer, f64, Arc<S>, broadcast::Receiver<()>) -> HandlerTask + Send>;
 
 /// Creates the handler task for the given handler and routing key. See [`HandlerTask`].
+#[allow(clippy::too_many_arguments)]
 fn handler_task<H, S, Args, Res>(
     routing_key: String,
     handler: H,
     channel: Channel,
     mut consumer: Consumer,
+    prefetch: f64,
     state: Arc<S>,
+    mut shutdown: broadcast::Receiver<()>,
     should_reply: bool,
 ) -> HandlerTask
 where
@@ -41,26 +53,42 @@ where
         // We keep a set of handles to all outstanding spawned tasks.
         let mut tasks = FuturesUnordered::new();
 
-        // We keep listening for requests from the consumer until the consumer cancels.
-        // See lapin::Consumer's implementation of Stream.
-        loop {
+        // We keep listening for requests from the consumer until the consumer cancels or we're instructed to shut down.
+        let ret = loop {
             let delivery = tokio::select! {
-                // Listen on new deliveries.
-                delivery = consumer.next() => match delivery {
-                    // Received a delivery successfully, just unwrap it from the option.
-                    Some(delivery) => delivery,
-                    // We should only ever get to this point if the consumer is cancelled.
-                    // We'll just return the routing key - might be a help for the user to see which
-                    // routing key got cancelled.
-                    None => return routing_key,
-                },
+                // "Biased" here means that instead of randomly selecting a path, Tokio will check from top to bottom.
+                // This ensures that we check for shutdown before receiving a new message.
+                // It also means that we prioritize emptying the already-started handlers before spawning new handlers.
+                biased;
+
+                // Check if we need to shut down.
+                _ = shutdown.recv() => {
+                    info!("Graceful shutdown signal received in handler {}.", type_name::<H>());
+                    // Break out of the loop with no error. No error indicates a graceful shutdown.
+                    break Ok(())
+                }
+
                 // Check return values of previously spawned handlers.
                 Some(result) = tasks.next() => if let Err(e) = result {
-                    panic!("Request handler for \"{routing_key}\" panicked: {e:#}");
+                    // A handler panicked. We won't shut down the whole system in this case, we'll just continue with the next call.
+                    // The hope is that the panic is a temporary thing.
+                    error!("Handler {} panicked: {}", type_name::<H>().to_string(), e);
+                    continue
                 } else {
                     // If the inner result is not an error, we just ignore it,
                     // it's just a request that finished handling in that case.
                     continue;
+                },
+
+                // Listen on new deliveries.
+                delivery = consumer.next() => match delivery {
+                    // Received a delivery successfully, just unwrap it from the option.
+                    Some(delivery) => delivery,
+
+                    // We should only ever get to this point if the consumer is cancelled (see lapin::Consumer's implementation of Stream).
+                    // We'll attempt a graceful shutdown in this case.
+                    // We'll return the routing key - might be a help for the user to see which consumer got cancelled.
+                    None => break Err(Error::ConsumerCancelled(routing_key)),
                 },
             };
 
@@ -85,13 +113,70 @@ where
                     .instrument(span)
                     .await;
             }));
+        };
+
+        // We won't process any further requests, so we'll cancel the consumer.
+        let queue = consumer.queue();
+        let consumer_tag = consumer.tag();
+        let tag = consumer_tag.as_str();
+
+        if let Err(e) = channel
+            .basic_cancel(tag, BasicCancelOptions::default())
+            .await
+        {
+            error!("Failed to cancel consumer with tag {tag} and queue {queue} during graceful shutdown of handler task {} (graceful shutdown will continue regardless): {e}", type_name::<H>())
         }
+
+        // We'll update the prefetch capacity gauge here.
+        // That means that if this queue takes a long time to shut down,
+        // it won't still appear as if it has capacity for many messages.
+        gauge!("kanin.prefetch_capacity", "queue" => queue.to_string()).decrement(prefetch);
+
+        if tasks.is_empty() {
+            info!("No outstanding messages on handler {}.", type_name::<H>())
+        } else {
+            info!(
+                "Handler {} finishing {} requests...",
+                type_name::<H>(),
+                tasks.len()
+            );
+
+            // Wait for the outstanding tasks to finish.
+            let start = Instant::now();
+            while let Some(res) = tasks.next().await {
+                if let Err(e) = res {
+                    error!(
+                        "Handler {} panicked during graceful shutdown (graceful shutdown will continue): {}",
+                        type_name::<H>().to_string(),
+                        e
+                    );
+                }
+
+                if !tasks.is_empty() {
+                    info!(
+                        "Handler {} still working on {} requests ({:?})...",
+                        type_name::<H>(),
+                        tasks.len(),
+                        start.elapsed(),
+                    )
+                }
+            }
+            info!(
+                "Handler {} finished in {:?}.",
+                type_name::<H>(),
+                start.elapsed(),
+            )
+        }
+
+        ret
     })
 }
 
 /// Handles the given request with the given handler and channel.
 ///
-/// Acks the request and responds with the given acker as appropriate.
+/// Acks the request and responds if the handler executes normally.
+///
+/// If the handler panicks, the request will be nacked and instructed to requeue.
 async fn handle_request<H, S, Args, Res>(
     mut req: Request<S>,
     handler: H,
@@ -105,7 +190,7 @@ async fn handle_request<H, S, Args, Res>(
     let app_id = req.app_id().unwrap_or("<unknown>");
     info!("Received request on handler {handler_name:?} from {app_id}");
 
-    if req.delivery.redelivered {
+    if req.delivery().redelivered {
         info!("Request was redelivered.");
     }
 
@@ -192,13 +277,10 @@ async fn handle_request<H, S, Args, Res>(
         }
     };
 
-    // Check if it's the default - this signifies that it was already extracted.
-    // In that case, it is the responsibility of the handler to acknowledge, so we won't do it.
-    if req.delivery.acker != Acker::default() {
-        match req.delivery.acker.ack(BasicAckOptions::default()).await {
-            Ok(()) => debug!("Successfully acked request."),
-            Err(e) => error!("Failed to ack request: {e:#}"),
-        }
+    // Remember to ack, otherwise the AMQP broker will think we failed to process the request!
+    match req.ack(BasicAckOptions::default()).await {
+        Ok(()) => debug!("Successfully acked request."),
+        Err(e) => error!("Failed to ack request: {e:#}"),
     }
 }
 
@@ -222,7 +304,7 @@ pub(super) struct TaskFactory<S> {
     /// Configuration for the handler task produced by this task factory.
     config: HandlerConfig,
     /// The factory function that constructs the handler task from the given channel, consumer and state.
-    factory: Box<dyn FnOnce(Channel, Consumer, Arc<S>) -> HandlerTask + Send>,
+    factory: HandlerTaskFactory<S>,
 }
 
 impl<S> TaskFactory<S> {
@@ -239,9 +321,24 @@ impl<S> TaskFactory<S> {
         Self {
             routing_key: routing_key.clone(),
             config,
-            factory: Box::new(move |channel: Channel, consumer: Consumer, state: Arc<S>| {
-                handler_task(routing_key, handler, channel, consumer, state, should_reply)
-            }),
+            factory: Box::new(
+                move |channel: Channel,
+                      consumer: Consumer,
+                      prefetch: f64,
+                      state: Arc<S>,
+                      shutdown: broadcast::Receiver<()>| {
+                    handler_task(
+                        routing_key,
+                        handler,
+                        channel,
+                        consumer,
+                        prefetch,
+                        state,
+                        shutdown,
+                        should_reply,
+                    )
+                },
+            ),
         }
     }
 
@@ -255,6 +352,7 @@ impl<S> TaskFactory<S> {
         self,
         conn: &Connection,
         state: Arc<S>,
+        shutdown: broadcast::Receiver<()>,
     ) -> lapin::Result<HandlerTask> {
         debug!(
             "Building task for handler on routing key {:?}",
@@ -317,6 +415,12 @@ impl<S> TaskFactory<S> {
             )
             .await?;
 
-        Ok((self.factory)(channel, consumer, state))
+        Ok((self.factory)(
+            channel,
+            consumer,
+            prefetch_f64,
+            state,
+            shutdown,
+        ))
     }
 }

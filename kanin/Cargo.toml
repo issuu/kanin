@@ -1,6 +1,6 @@
 [package]
 name = "kanin"
-version = "0.30.0"
+version = "0.31.0"
 edition = "2021"
 authors = ["Victor Nordam Suadicani <v.n.suadicani@gmail.com>"]
 description = "An RPC microservice framework for AMQP, protobuf and Rust built on lapin (https://github.com/amqp-rs/lapin)."
@@ -25,7 +25,13 @@ tracing = "0.1.37"
 uuid = { version = "1.4.1", features = ["v4"] }
 
 # Asynchronous runtime.
-tokio = { version = "1.18.0", features = ["rt", "rt-multi-thread", "macros"] }
+tokio = { version = "1.18.0", features = [
+	"rt",
+	"rt-multi-thread",
+	"macros",
+	"signal",
+	"sync",
+] }
 
 # Future utilities.
 futures = "0.3.21"
@@ -48,17 +54,15 @@ metrics = "0.22.1"
 
 [dev-dependencies]
 # Concrete logging implementation.
-env_logger = "0.11.3"
+tracing-subscriber = "0.3.18"
 
 # Asynchronous runtime.
 tokio = { version = "1.18.0", features = [
 	"rt",
 	"rt-multi-thread",
 	"macros",
-	# Needed for sleeping on tasks.
-	"time",
-	# Needed for OnceCell.
-	"sync",
-	# Needed for const_new on OnceCell.
 	"parking_lot",
+	"signal",
+	"sync",
+	"time",
 ] }

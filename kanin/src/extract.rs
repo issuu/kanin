@@ -13,14 +13,13 @@ pub use state::State;
 use std::{convert::Infallible, error::Error};
 
 use async_trait::async_trait;
-use lapin::{acker::Acker, Channel};
+use lapin::Channel;
 
 use crate::Request;
 
 /// A trait for types that can be extracted from [requests](`Request`).
 ///
 /// Note that extractions might mutate the request in certain ways.
-/// Most notably, if extracting the [`Acker`] from a request, it is the responsibility of the handler to acknowledge the message.
 #[async_trait]
 pub trait Extract<S>: Sized {
     /// The error to return in case extraction fails.
@@ -28,21 +27,6 @@ pub trait Extract<S>: Sized {
 
     /// Extract the type from the request.
     async fn extract(req: &mut Request<S>) -> Result<Self, Self::Error>;
-}
-
-/// Note that when you extract the [`Acker`], the handler itself must acknowledge the request.
-/// kanin *will not* acknowledge the request for you in this case.
-// TODO: This implementation is quite hacky and should probably be removed.
-#[async_trait]
-impl<S> Extract<S> for Acker
-where
-    S: Send + Sync,
-{
-    type Error = Infallible;
-
-    async fn extract(req: &mut Request<S>) -> Result<Self, Self::Error> {
-        Ok(std::mem::take(&mut req.delivery.acker))
-    }
 }
 
 #[async_trait]
@@ -71,6 +55,7 @@ where
     }
 }
 
+/// Extracting a result returns the extraction error if it fails, allowing the handler to decide what to do with the error.
 #[async_trait]
 impl<S, T> Extract<S> for Result<T, <T as Extract<S>>::Error>
 where
