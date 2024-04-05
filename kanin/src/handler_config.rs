@@ -3,7 +3,7 @@
 use std::time::Duration;
 
 use lapin::options::QueueDeclareOptions;
-use lapin::types::{AMQPValue, FieldTable, LongString, ShortString};
+use lapin::types::{AMQPValue, FieldTable};
 
 /// Detailed configuration of a handler.
 #[derive(Clone, Debug)]
@@ -82,10 +82,10 @@ impl HandlerConfig {
     // Panic is extremely unlikely, let's not bother.
     #[allow(clippy::missing_panics_doc)]
     pub fn with_expires(mut self, expires: Duration) -> Self {
-        let millis: u32 = expires
+        let millis: i64 = expires
             .as_millis()
             .try_into()
-            .expect("Duration too long to fit milliseconds in 32 bits");
+            .expect("Duration too long to fit milliseconds in i64");
 
         self.arguments.insert("x-expires".into(), millis.into());
         self
@@ -96,23 +96,20 @@ impl HandlerConfig {
     // Panic is extremely unlikely, let's not bother.
     #[allow(clippy::missing_panics_doc)]
     pub fn with_message_ttl(mut self, message_ttl: Duration) -> Self {
-        let millis: u32 = message_ttl
+        let millis: i64 = message_ttl
             .as_millis()
             .try_into()
-            .expect("Duration too long to fit milliseconds in 32 bits");
+            .expect("Duration too long to fit milliseconds in i64");
 
         self.arguments.insert("x-message-ttl".into(), millis.into());
         self
     }
 
     /// Sets the `x-dead-letter-exchange` argument on the queue. See also [RabbitMQ's documentation](https://www.rabbitmq.com/dlx.html).
-    pub fn with_dead_letter_exchange(
-        mut self,
-        dead_letter_exchange: impl Into<LongString>,
-    ) -> Self {
+    pub fn with_dead_letter_exchange(mut self, dead_letter_exchange: impl Into<String>) -> Self {
         self.arguments.insert(
             "x-dead-letter-exchange".into(),
-            AMQPValue::LongString(dead_letter_exchange.into()),
+            AMQPValue::LongString(dead_letter_exchange.into().into()),
         );
         self
     }
@@ -120,29 +117,34 @@ impl HandlerConfig {
     /// Sets the `x-dead-letter-routing-key` argument on the queue. See also [RabbitMQ's documentation](https://www.rabbitmq.com/dlx.html).
     pub fn with_dead_letter_routing_key(
         mut self,
-        dead_letter_routing_key: impl Into<LongString>,
+        dead_letter_routing_key: impl Into<String>,
     ) -> Self {
         self.arguments.insert(
             "x-dead-letter-routing-key".into(),
-            AMQPValue::LongString(dead_letter_routing_key.into()),
+            AMQPValue::LongString(dead_letter_routing_key.into().into()),
         );
         self
     }
 
     /// Sets the `x-consumer-timeout` argument on the queue. See also [RabbitMQ's documentation](https://www.rabbitmq.com/consumers.html).
-    pub fn with_consumer_timeout(mut self, consumer_timeout: impl Into<LongString>) -> Self {
-        self.arguments.insert(
-            "x-consumer-timeout".into(),
-            AMQPValue::LongString(consumer_timeout.into()),
-        );
+    // Panic is extremely unlikely, let's not bother.
+    #[allow(clippy::missing_panics_doc)]
+    pub fn with_consumer_timeout(mut self, consumer_timeout: Duration) -> Self {
+        let millis: i64 = consumer_timeout
+            .as_millis()
+            .try_into()
+            .expect("Duration too long to fit milliseconds in i64");
+
+        self.arguments
+            .insert("x-consumer-timeout".into(), millis.into());
         self
     }
 
     /// Set any argument with any value.
     ///
     /// Prefer the more specific methods if you can, but you can use this for any specific argument you might want to set.
-    pub fn with_arg(mut self, arg: impl Into<ShortString>, value: impl Into<AMQPValue>) -> Self {
-        self.arguments.insert(arg.into(), value.into());
+    pub fn with_arg(mut self, arg: impl Into<String>, value: impl Into<AMQPValue>) -> Self {
+        self.arguments.insert(arg.into().into(), value.into());
         self
     }
 
