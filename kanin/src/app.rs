@@ -51,7 +51,7 @@ impl<S> App<S> {
         }
     }
 
-    /// Returns a [`broadcast::Sender<()>`]. If you send a message on this channel, the app will gracefully shut down.
+    /// Returns a [`tokio::sync::broadcast::Sender`]. If you send a message on this channel, the app will gracefully shut down.
     pub fn shutdown_channel(&self) -> broadcast::Sender<()> {
         self.shutdown.clone()
     }
@@ -176,8 +176,12 @@ impl<S> App<S> {
     /// * A connection to the AMQP broker could not be established.
     /// * Queue/consumer declaration or binding failed while setting up a handler.
     ///
+    /// On connection errors, the app will attempt to gracefully shutdown.
+    ///
     /// # Panics
-    /// On connection errors, the app will simply panic.
+    /// Panics in your handlers does not cause the app to shutdown. Requests will be nacked in this case..
+    ///
+    /// Internal panics inside kanin's code will however shut down the app. This shouldn't happen though (please report it if it does).
     #[inline]
     pub async fn run_with_connection(self, conn: &Connection) -> Result<()> {
         // Describe metrics (just need to do it somewhere once as we run the app).
