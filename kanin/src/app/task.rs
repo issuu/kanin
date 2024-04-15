@@ -88,7 +88,10 @@ where
                     // We should only ever get to this point if the consumer is cancelled (see lapin::Consumer's implementation of Stream).
                     // We'll attempt a graceful shutdown in this case.
                     // We'll return the routing key - might be a help for the user to see which consumer got cancelled.
-                    None => break Err(Error::ConsumerCancelled(routing_key)),
+                    None => {
+                        error!("Consumer cancelled, attempting to gracefully shut down...");
+                        break Err(Error::ConsumerCancelled(routing_key));
+                    },
                 },
             };
 
