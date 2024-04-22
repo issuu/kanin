@@ -1,10 +1,12 @@
 //! Interface for types that can extract themselves from requests.
 
+mod acker;
 mod app_id;
 mod message;
 mod req_id;
 mod state;
 
+pub use acker::Acker;
 pub use app_id::AppId;
 pub use message::Msg;
 pub use req_id::ReqId;
