@@ -1,6 +1,6 @@
 //! Manual acknowledgement and rejection.
 
-use std::mem;
+use std::{convert::Infallible, mem};
 
 use async_trait::async_trait;
 use lapin::{
@@ -8,7 +8,7 @@ use lapin::{
     options::{BasicAckOptions, BasicRejectOptions},
 };
 
-use crate::{Extract, HandlerError, Request};
+use crate::{Extract, Request};
 
 /// An extractor that allows you manual control of acknowledgement and rejection of messages.
 ///
@@ -53,7 +53,7 @@ impl<S> Extract<S> for Acker
 where
     S: Send + Sync,
 {
-    type Error = HandlerError;
+    type Error = Infallible;
 
     async fn extract(req: &mut Request<S>) -> Result<Self, Self::Error> {
         // This is quite a hacky way of taking the acker. We should improve this if/when lapin improves the interface.
