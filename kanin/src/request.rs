@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use lapin::options::{BasicAckOptions, BasicNackOptions};
+use lapin::options::{BasicAckOptions, BasicRejectOptions};
 use lapin::protocol::basic::AMQPProperties;
 
 use lapin::{message::Delivery, Channel};
@@ -19,7 +19,8 @@ pub struct Request<S> {
     /// is found in the `req_id` header of the incoming AMQP message.
     req_id: ReqId,
     /// Has this message been (n)ack'ed?
-    acked: bool,
+    // This has to be pub within kanin so that the acker extractor can set it.
+    pub(crate) acked: bool,
     /// The channel the message was received on.
     channel: Channel,
     /// The message delivery.
@@ -46,6 +47,13 @@ impl<S> Request<S> {
     /// Returns a reference to the delivery of this request.
     pub fn delivery(&self) -> &Delivery {
         &self.delivery
+    }
+
+    /// Returns a mutable reference to the delivery of this request.
+    ///
+    /// For now, this is a private interface. It could potentially be made public in the future.
+    pub(crate) fn delivery_mut(&mut self) -> &mut Delivery {
+        &mut self.delivery
     }
 
     /// Returns the app state for the given type.
@@ -82,7 +90,7 @@ impl<S> Request<S> {
     }
 }
 
-/// We implement [`Drop`] on [`Request`] to ensure that requests that were not explicitly acknowledged will be nacked.
+/// We implement [`Drop`] on [`Request`] to ensure that requests that were not explicitly acknowledged will be rejected.
 impl<S> Drop for Request<S> {
     fn drop(&mut self) {
         // If we already acked, do nothing.
@@ -92,25 +100,20 @@ impl<S> Drop for Request<S> {
 
         // We haven't acked and the request is being dropped.
         // This almost certainly indicates a panic during request handling.
-        // We will nack the request to tell the AMQP broker to requeue this message ASAP.
-        warn!("Nacking unacked request {} due to drop.", self.req_id);
+        // We will reject the request to tell the AMQP broker to requeue this message ASAP.
+        warn!("Rejecting unacked request {} due to drop.", self.req_id);
 
         let req_id = self.req_id.clone();
-        // Yoink the acker from the delivery so we can give it to a future to nack the message.
+        // Yoink the acker from the delivery so we can give it to a future to reject the message.
+        // This is a bit of a hack. Hopefully lapin improves the interface in the future, see also https://github.com/amqp-rs/lapin/issues/402.
         let acker = std::mem::take(&mut self.delivery.acker);
 
-        // Nacking is async so we have to spawn a task to do it.
+        // Rejecting is async so we have to spawn a task to do it.
         // Unfortunately we can't really be sure that this ever completes.
         tokio::spawn(async move {
-            match acker
-                .nack(BasicNackOptions {
-                    multiple: false,
-                    requeue: true,
-                })
-                .await
-            {
-                Ok(()) => debug!("Successfully nacked request {} during drop.", req_id),
-                Err(e) => error!("Failed to nack request {} during drop: {e}", req_id),
+            match acker.reject(BasicRejectOptions { requeue: true }).await {
+                Ok(()) => debug!("Successfully rejected request {} during drop.", req_id),
+                Err(e) => error!("Failed to reject request {} during drop: {e}", req_id),
             }
         });
 

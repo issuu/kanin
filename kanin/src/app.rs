@@ -179,7 +179,7 @@ impl<S> App<S> {
     /// On connection errors, the app will attempt to gracefully shutdown.
     ///
     /// # Panics
-    /// Panics in your handlers does not cause the app to shutdown. Requests will be nacked in this case..
+    /// Panics in your handlers does not cause the app to shutdown. Requests will be rejected in this case.
     ///
     /// Internal panics inside kanin's code will however shut down the app. This shouldn't happen though (please report it if it does).
     #[inline]

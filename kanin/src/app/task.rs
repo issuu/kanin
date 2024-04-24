@@ -13,7 +13,7 @@ use lapin::{
 };
 use metrics::gauge;
 use tokio::sync::broadcast;
-use tracing::{debug, error, info, info_span, trace, warn, Instrument};
+use tracing::{debug, error, error_span, info, trace, warn, Instrument};
 
 use crate::{Error, Handler, HandlerConfig, Request, Respond, Result};
 
@@ -88,7 +88,10 @@ where
                     // We should only ever get to this point if the consumer is cancelled (see lapin::Consumer's implementation of Stream).
                     // We'll attempt a graceful shutdown in this case.
                     // We'll return the routing key - might be a help for the user to see which consumer got cancelled.
-                    None => break Err(Error::ConsumerCancelled(routing_key)),
+                    None => {
+                        error!("Consumer cancelled, attempting to gracefully shut down...");
+                        break Err(Error::ConsumerCancelled(routing_key));
+                    },
                 },
             };
 
@@ -107,7 +110,7 @@ where
             // Requests are handled and replied to concurrently.
             // This allows each handler task to process multiple requests at once.
             tasks.push(tokio::spawn(async move {
-                let span = info_span!("request", req_id = %req.req_id());
+                let span = error_span!("request", req_id = %req.req_id());
 
                 handle_request(req, handler, channel, should_reply)
                     .instrument(span)
@@ -176,7 +179,7 @@ where
 ///
 /// Acks the request and responds if the handler executes normally.
 ///
-/// If the handler panicks, the request will be nacked and instructed to requeue.
+/// If the handler panicks, the request will be rejected and instructed to requeue.
 async fn handle_request<H, S, Args, Res>(
     mut req: Request<S>,
     handler: H,
@@ -278,9 +281,12 @@ async fn handle_request<H, S, Args, Res>(
     };
 
     // Remember to ack, otherwise the AMQP broker will think we failed to process the request!
-    match req.ack(BasicAckOptions::default()).await {
-        Ok(()) => debug!("Successfully acked request."),
-        Err(e) => error!("Failed to ack request: {e:#}"),
+    // We don't ack if we've already done it, via the handler extracting the acker.
+    if !req.acked {
+        match req.ack(BasicAckOptions::default()).await {
+            Ok(()) => debug!("Successfully acked request."),
+            Err(e) => error!("Failed to ack request: {e:#}"),
+        }
     }
 }
 
