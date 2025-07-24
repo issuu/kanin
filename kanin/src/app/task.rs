@@ -191,10 +191,10 @@ async fn handle_request<H, S, Args, Res>(
 {
     let handler_name = std::any::type_name::<H>();
     let app_id = req.app_id().unwrap_or("<unknown>");
-    info!("Received request on handler {handler_name:?} from {app_id}");
+    debug!("Received request on handler {handler_name:?} from {app_id}");
 
     if req.delivery().redelivered {
-        info!("Request was redelivered.");
+        debug!("Request was redelivered.");
     }
 
     let t = std::time::Instant::now();
@@ -228,7 +228,7 @@ async fn handle_request<H, S, Args, Res>(
             if bytes_response.is_empty() {
                 warn!("Handler {handler_name:?} produced an empty response to a message with a `reply_to` property. This is probably undesired, as the caller likely expects more of a response (elapsed={elapsed:?})");
             } else {
-                info!(
+                debug!(
                     "Response with {} bytes that will be published to {reply_to} (elapsed={elapsed:?})",
                     bytes_response.len()
                 );
