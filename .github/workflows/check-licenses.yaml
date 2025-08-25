@@ -9,7 +9,7 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@cbb722410c2e876e24abbe8de2cc27693e501dcb # v4
-      - uses: issuu/github-actions/prepare-rust@581624ae4c13cdf07bcf803c305fd5cfd5752b3eprepare-rust-v0.1.0
+      - uses: issuu/github-actions/prepare-rust@581624ae4c13cdf07bcf803c305fd5cfd5752b3e
       - uses: BendingSpoons/github-actions/check-licenses@d6de2dd025713ce457cf407b109476f0c46c4764
         with:
           license-config-github-token: ${{ secrets.LICENSE_CONFIG_GITHUB_TOKEN }}
