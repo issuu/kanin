@@ -10,7 +10,7 @@ jobs:
     steps:
       - uses: actions/checkout@cbb722410c2e876e24abbe8de2cc27693e501dcb # v4
       - uses: issuu/github-actions/prepare-rust@b37f0dc6e200f808d1c2d00b290b8c8d35362910
-      - uses: BendingSpoons/github-actions/check-licenses@d6de2dd025713ce457cf407b109476f0c46c4764
+      - uses: BendingSpoons/github-actions/check-licenses@61d566cd7b62810c302495c8976b18f3754343e2
         with:
           license-config-github-token: ${{ secrets.LICENSE_CONFIG_GITHUB_TOKEN }}
           scope: external
