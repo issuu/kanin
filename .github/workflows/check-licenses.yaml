@@ -2,7 +2,7 @@ name: Check Licenses
 on: [pull_request]
 jobs:
   check-licenses:
-    runs-on: [self-hosted]
+    runs-on: [ubuntu-24.04]
     permissions:
       pull-requests: write
       contents: read
